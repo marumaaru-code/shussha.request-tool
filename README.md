@@ -52,6 +52,7 @@
 > create policy "anyone read reqs"   on office_requests for select using (true);
 > create policy "anyone write reqs"  on office_requests for insert with check (true);
 > create policy "anyone update reqs" on office_requests for update using (true) with check (true);
+> create policy "anyone delete reqs" on office_requests for delete using (true);
 > alter publication supabase_realtime add table office_requests;
 > ```
 
@@ -116,9 +117,10 @@ const CONFIG = {
 ## 使い方
 
 - **インターン生**：所属（SNS / LINE / AI / 広告 / 制作）を選び、SNSならunit A〜H・広告ならunit A〜Cを選択（LINE・AI・制作はunitの選択なし）。あとは名前・出社したい日付・（任意で）理由を入れて「提出する」を押すだけ。
-- **確認する人（承認側）**：ヘッダー右上の「確認者」を押して**確認者モード**をONにします（ブラウザに記憶され、次回も維持）。ONにすると：
+- **確認する人（承認側）**：ヘッダー右上の「確認者」を押して**確認者モード**をONにします。**パスワード**（`CONFIG.REVIEWER_PASSWORD`）を求められ、合致するとONになります（その端末では記憶。OFF→再ONで再度要求）。ONにすると：
   - **座席残数の目安**（曜日別）が表示されます。各依頼カードにも「その曜日の2F残席」が出るので、空きを見ながら承認できます。
   - 各依頼に「**承認する / 却下**」ボタンが出ます。基本は空きがあれば承認（不足時も3F利用で対応可）。もう一度同じボタンを押すと「承認待ち」に戻せます。
+  - 各依頼に「**🗑 この依頼を削除**」ボタンも出ます。押すと確認ダイアログ → OKで完全に削除されます（元に戻せません）。
   - 「承認待ち / 承認済み / すべて」で絞り込めます。
 - インターン生側は、自分の依頼に「承認待ち・承認済み・却下」のバッジが付くので、結果がひと目で分かります（確認者モードのボタンや座席パネルは、モードOFFのときは出ません）。
 - 提出・承認はリアルタイムで全員に反映されます。
@@ -152,7 +154,8 @@ const CONFIG = {
   const WEEKDAY_REMAINING = { 1: 6, 2: -1, 3: -1, 4: -2, 5: 11 }; // 月〜金
   const SEAT_NOTE = "※2Fメイン（50席）基準の残席数。不足していても基本は3F利用で対応できます。";
   ```
-- **誰でも確認者モードにできます**（今は認証なし）。承認は社内の運用で回す前提です。特定の人だけに絞りたくなったら、簡易パスワードなどを足せます（相談ください）。
+- **確認者モードには簡易パスワードが必要です**（`CONFIG.REVIEWER_PASSWORD`）。ただしこれは公開HTMLに載る「軽い鍵」で、ソースを見れば分かる仕組みです。インターンが気軽に承認・削除するのを防ぐ抑止としては十分ですが、本格的な認証ではありません。厳密に守りたい場合は Supabase ログイン方式への切り替えが必要です。
+- パスワードを変えたいときは `CONFIG.REVIEWER_PASSWORD` の値を書き換えて再デプロイしてください（空文字にするとパスワードなしになります）。
 
 ---
 

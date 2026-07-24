@@ -216,6 +216,9 @@
   .rv-btn:active { opacity: .65; }
   .rv-btn.approve.active { background: var(--accent); border-color: var(--accent); color: #fff; }
   .rv-btn.reject.active { background: #c15b5b; border-color: #c15b5b; color: #fff; }
+  .del-row { margin-top: 8px; text-align: right; }
+  .del-btn { font-size: 12px; font-weight: 600; color: var(--secondary); padding: 6px 10px; border-radius: 8px; transition: color .15s, background .15s; }
+  .del-btn:active { color: #c15b5b; background: rgba(200,90,90,.1); }
   .req-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
   .req-date { font-size: 18px; font-weight: 800; letter-spacing: -.01em; }
   .req-date .dow { font-size: 14px; margin-left: 3px; color: var(--secondary); font-weight: 700; }
@@ -367,6 +370,8 @@ const CONFIG = {
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvb2p4bWFra3N3cG1tYWhpY2ZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4NDY5MTIsImV4cCI6MjEwMDQyMjkxMn0.etCj5H1YOToqPz_34oWWpV1gE4E2S9zbLx09L0ZBQo4",  // ← Supabaseの anon public key
   // ↓ Slack通知を使う場合だけ。Slackで作った Incoming Webhook のURLを貼る（空のままなら通知しません）
   SLACK_WEBHOOK_URL: "",                              // 例: "https://hooks.slack.com/services/T000/B000/xxxx"
+  // ↓ 確認者モードに入るためのパスワード（空なら誰でも確認者モードに入れます）
+  REVIEWER_PASSWORD: "shosan0724",
 };
 /* ==================================================================
    ▲▲▲ 設定ここまで ▲▲▲
@@ -699,12 +704,13 @@ function renderCard(r) {
     ? `<div class="seat-inline ${short ? "short" : ""}">${DOW[d.wday]}曜の2F残席 <b>${rem}</b>${short ? "（3F利用で対応可）" : ""}</div>`
     : "";
 
-  // 承認/却下ボタン（確認者モードのみ）。同じボタンをもう一度押すと承認待ちに戻る
+  // 承認/却下・削除ボタン（確認者モードのみ）。承認/却下は同じボタンをもう一度押すと承認待ちに戻る
   const actions = reviewer
     ? `<div class="review-actions">
          <button class="rv-btn approve ${st === "approved" ? "active" : ""}" data-id="${r.id}" data-status="approved">${st === "approved" ? "✓ 承認済み" : "承認する"}</button>
          <button class="rv-btn reject ${st === "rejected" ? "active" : ""}" data-id="${r.id}" data-status="rejected">${st === "rejected" ? "✕ 却下済み" : "却下"}</button>
-       </div>`
+       </div>
+       <div class="del-row"><button class="del-btn" data-del="${r.id}">🗑 この依頼を削除</button></div>`
     : "";
 
   return `<div class="req-card ${st === "rejected" ? "rejected" : ""}">
@@ -726,6 +732,20 @@ function attachCardEvents() {
   document.querySelectorAll(".rv-btn").forEach(btn => {
     btn.addEventListener("click", () => setStatus(btn.dataset.id, btn.dataset.status));
   });
+  document.querySelectorAll(".del-btn").forEach(btn => {
+    btn.addEventListener("click", () => deleteRequest(btn.dataset.del));
+  });
+}
+
+async function deleteRequest(id) {
+  if (!sb) { toast("設定を入れると保存できます"); return; }
+  const r = requests.find(x => x.id === id);
+  const label = r ? `${fmtDate(r.requested_date).label} ${r.unit_name} ${r.person_name}` : "この依頼";
+  if (!confirm(`「${label}」の依頼を削除します。\n元に戻せません。よろしいですか？`)) return;
+  const { error } = await sb.from(TABLE).delete().eq("id", id);
+  if (error) { toast("削除に失敗しました"); console.error(error); return; }
+  toast("削除しました 🗑");
+  await loadAll();
 }
 
 async function setStatus(id, target) {
@@ -741,7 +761,18 @@ async function setStatus(id, target) {
 /* ---------- 確認者モード ---------- */
 function wireReviewer() {
   document.getElementById("reviewerToggle").addEventListener("click", () => {
-    reviewer = !reviewer;
+    if (!reviewer) {
+      // ONにするとき：パスワードが設定されていれば確認
+      const pw = CONFIG.REVIEWER_PASSWORD;
+      if (pw) {
+        const input = prompt("確認者パスワードを入力してください");
+        if (input === null) return;                               // キャンセル
+        if (input !== pw) { toast("パスワードが違います"); return; }
+      }
+      reviewer = true;
+    } else {
+      reviewer = false;
+    }
     localStorage.setItem("irai_reviewer", reviewer ? "1" : "0");
     applyReviewerUI();
   });

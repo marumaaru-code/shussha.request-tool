@@ -27,6 +27,9 @@ create policy "anyone write reqs"  on office_requests for insert with check (tru
 drop policy if exists "anyone update reqs" on office_requests;
 create policy "anyone update reqs" on office_requests for update using (true) with check (true);
 
+drop policy if exists "anyone delete reqs" on office_requests;
+create policy "anyone delete reqs" on office_requests for delete using (true);
+
 -- リアルタイム反映（提出・承認が全員の画面に即反映される）
 -- ※すでに追加済みだと "already a member" のエラーになりますが、その場合は無視してOKです。
 alter publication supabase_realtime add table office_requests;
