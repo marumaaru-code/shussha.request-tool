@@ -11,9 +11,13 @@ create table if not exists office_requests (
   requested_date date not null,          -- 出社したい日付
   reason         text,                   -- 理由・備考（任意）
   status         text default 'pending', -- pending（承認待ち）/ approved / rejected
+  reviewer_comment text,                 -- 確認者コメント（任意）
   client_id      text,                   -- 提出端末の識別用
   created_at     timestamptz default now()
 );
+
+-- 既にテーブルがある場合に備えて列を後から足す（あってもエラーにならない）
+alter table office_requests add column if not exists reviewer_comment text;
 
 -- 行レベルセキュリティ（RLS）＋ 社内カジュアル利用向けのポリシー
 alter table office_requests enable row level security;
