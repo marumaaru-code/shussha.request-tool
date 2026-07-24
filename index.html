@@ -1,0 +1,831 @@
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>別曜日 出社依頼</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+  :root {
+    --bg: #fefefe;
+    --ink: #423d38;
+    --secondary: #a89f95;
+    --divider: rgba(90, 75, 60, 0.1);
+    --field: #f4f2ee;
+    --accent: #5a8a6a;
+    --btn-bg: #5a5048;
+    --btn-ink: #fbf8f3;
+    --chip-border: rgba(90, 75, 60, 0.18);
+    --card: #ffffff;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+      "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", Meiryo, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: .01em;
+  }
+
+  button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; padding: 0; }
+  textarea, input { font-family: inherit; }
+
+  .wrap { max-width: 600px; margin: 0 auto; padding: 0 0 100px; }
+
+  /* ---------- Gate ---------- */
+  #gate {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100; padding: 24px;
+  }
+  #gate.hidden { display: none; }
+  .gate-card { width: 100%; max-width: 340px; text-align: center; }
+  .gate-emoji { font-size: 54px; margin-bottom: 10px; }
+  .gate-card h1 { font-size: 23px; margin: 0 0 6px; font-weight: 800; letter-spacing: -.02em; }
+  .gate-card p { color: var(--secondary); font-size: 14px; margin: 0 0 24px; }
+  .gate-card button {
+    width: 100%; padding: 15px; border-radius: 14px;
+    background: var(--btn-bg); color: var(--btn-ink); font-weight: 700; font-size: 16px;
+    transition: opacity .2s;
+  }
+  .gate-card button:active { opacity: .7; }
+
+  /* ---------- Header ---------- */
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--divider);
+  }
+  .header-inner {
+    max-width: 600px; margin: 0 auto; height: 58px;
+    display: flex; align-items: center; justify-content: center; position: relative;
+  }
+  .header-inner h1 { font-size: 16px; margin: 0; font-weight: 800; letter-spacing: -.01em; }
+  .reviewer-toggle {
+    position: absolute; right: 12px; display: flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 700; color: var(--secondary);
+    padding: 6px 11px; border-radius: 999px; border: 1px solid var(--chip-border);
+    transition: opacity .2s;
+  }
+  .reviewer-toggle:active { opacity: .6; }
+  .reviewer-toggle.on { color: var(--accent); border-color: var(--accent); background: rgba(90,138,106,.1); }
+  .reviewer-toggle .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .4; }
+  .reviewer-toggle.on .dot { opacity: 1; }
+
+  /* ---------- Tabs ---------- */
+  .tabs {
+    position: sticky; top: 58px; z-index: 19;
+    max-width: 600px; margin: 0 auto; display: flex; gap: 6px;
+    padding: 10px 14px; background: var(--bg);
+    border-bottom: 1px solid var(--divider);
+  }
+  .tab {
+    padding: 9px 18px; border-radius: 999px; font-weight: 700; font-size: 14px;
+    color: var(--secondary); background: transparent; transition: background .15s, color .15s;
+  }
+  .tab.on { background: var(--field); color: var(--ink); }
+  .tab:active { opacity: .7; }
+
+  /* ---------- 出社管理 ---------- */
+  .manage-note { font-size: 12.5px; color: var(--secondary); margin: 0; padding: 16px 16px 0; line-height: 1.6; }
+  .manage-search { padding: 12px 16px 4px; }
+  .manage-search input {
+    width: 100%; padding: 12px 14px; border-radius: 12px;
+    border: 1px solid var(--divider); font-size: 16px;
+    background: var(--field); color: var(--ink); outline: none;
+  }
+  .manage-search input:focus { border-color: var(--ink); }
+
+  .month-group { margin-top: 10px; }
+  .month-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 14px 16px 8px;
+  }
+  .month-head .m { font-size: 15px; font-weight: 800; }
+  .month-head .sum { font-size: 12px; color: var(--secondary); }
+  .person-row {
+    margin: 0 16px 8px; padding: 13px 15px; border-radius: 14px;
+    background: var(--card); border: 1px solid var(--divider);
+  }
+  .person-top { display: flex; align-items: center; gap: 8px; }
+  .person-top .unit {
+    font-size: 12px; font-weight: 700; color: var(--accent);
+    background: rgba(90,138,106,.12); padding: 2px 9px; border-radius: 999px;
+  }
+  .person-top .name { font-weight: 700; font-size: 15px; }
+  .person-top .cnt { margin-left: auto; font-size: 14px; font-weight: 800; white-space: nowrap; }
+  .person-top .cnt b { font-size: 18px; }
+  .person-dates { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+  .date-chip {
+    font-size: 12px; color: var(--secondary); background: var(--field);
+    padding: 3px 10px; border-radius: 999px;
+  }
+
+  /* ---------- Form ---------- */
+  .form {
+    padding: 20px 16px 22px;
+    border-bottom: 10px solid var(--divider);
+  }
+  .form-lead { font-size: 13px; color: var(--secondary); margin: 0 0 18px; line-height: 1.6; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+  .field label .req { color: var(--accent); font-size: 11px; margin-left: 6px; font-weight: 700; }
+  .field input, .field textarea, .field select {
+    width: 100%; padding: 13px 14px; border-radius: 12px;
+    border: 1px solid var(--divider); font-size: 16px;
+    background: var(--field); color: var(--ink); outline: none;
+    -webkit-appearance: none; appearance: none;
+  }
+  .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--ink); }
+  .field select {
+    padding-right: 38px; cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%23a89f95' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 14px center;
+  }
+  .field textarea { resize: none; min-height: 72px; line-height: 1.5; }
+  .field .hint { font-size: 12px; color: var(--secondary); margin-top: 5px; }
+  .row2 { display: flex; gap: 12px; }
+  .row2 .field { flex: 1; }
+  .submit-btn {
+    width: 100%; margin-top: 6px; padding: 15px; border-radius: 14px;
+    background: var(--btn-bg); color: var(--btn-ink); font-weight: 700; font-size: 16px;
+    transition: opacity .2s;
+  }
+  .submit-btn:disabled { opacity: .3; }
+  .submit-btn:not(:disabled):active { opacity: .7; }
+
+  /* ---------- List ---------- */
+  .list-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 16px 10px;
+  }
+  .list-head h2 { font-size: 15px; font-weight: 800; margin: 0; }
+  .list-head .count { font-size: 12px; color: var(--secondary); }
+  .filters { display: flex; gap: 8px; padding: 0 16px 12px; }
+  .filter-chip {
+    padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border);
+    font-size: 13px; color: var(--secondary); font-weight: 600; background: transparent;
+  }
+  .filter-chip.on { border-color: var(--ink); color: var(--ink); background: var(--field); }
+  .filter-chip:active { opacity: .6; }
+
+  .req-card {
+    margin: 0 16px 12px; padding: 15px 16px; border-radius: 16px;
+    background: var(--card); border: 1px solid var(--divider);
+  }
+  .req-card.rejected { opacity: .55; }
+
+  /* 座席残数パネル（確認者モードのみ） */
+  .seat-panel {
+    margin: 0 16px 14px; padding: 13px 15px; border-radius: 14px;
+    background: var(--field); border: 1px solid var(--divider);
+  }
+  .seat-panel h3 { font-size: 12px; font-weight: 800; margin: 0 0 9px; color: var(--secondary); letter-spacing: .02em; }
+  .seat-days { display: flex; gap: 7px; }
+  .seat-day {
+    flex: 1; text-align: center; padding: 8px 2px; border-radius: 10px; background: var(--card);
+    border: 1px solid var(--divider);
+  }
+  .seat-day .d { font-size: 11px; color: var(--secondary); font-weight: 700; }
+  .seat-day .n { font-size: 17px; font-weight: 800; margin-top: 2px; }
+  .seat-day.short .n { color: var(--like, #ec6a6a); }
+  .seat-note { font-size: 11.5px; color: var(--secondary); margin: 9px 0 0; line-height: 1.5; }
+
+  /* ステータスバッジ */
+  .status-badge { font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .status-badge.pending  { color: #a5751a; background: rgba(210,150,30,.15); }
+  .status-badge.approved { color: var(--accent); background: rgba(90,138,106,.15); }
+  .status-badge.rejected { color: #c15b5b; background: rgba(200,90,90,.15); }
+
+  /* カード内の座席残数メモ */
+  .seat-inline { font-size: 12px; color: var(--secondary); margin-top: 8px; }
+  .seat-inline b { font-weight: 800; color: var(--ink); }
+  .seat-inline.short b { color: #c15b5b; }
+
+  /* 承認/却下ボタン */
+  .review-actions { margin-top: 12px; display: flex; gap: 8px; }
+  .rv-btn {
+    flex: 1; font-size: 13px; font-weight: 700; padding: 9px 0; border-radius: 10px;
+    border: 1px solid var(--chip-border); color: var(--ink); transition: opacity .2s;
+  }
+  .rv-btn:active { opacity: .65; }
+  .rv-btn.approve.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .rv-btn.reject.active { background: #c15b5b; border-color: #c15b5b; color: #fff; }
+  .req-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .req-date { font-size: 18px; font-weight: 800; letter-spacing: -.01em; }
+  .req-date .dow { font-size: 14px; margin-left: 3px; color: var(--secondary); font-weight: 700; }
+  .req-when { font-size: 12px; color: var(--secondary); white-space: nowrap; }
+  .req-who { margin-top: 6px; font-size: 14px; }
+  .req-who .unit {
+    display: inline-block; font-size: 12px; font-weight: 700; color: var(--accent);
+    background: rgba(90,138,106,.12); padding: 2px 9px; border-radius: 999px; margin-right: 8px;
+  }
+  .req-who .name { font-weight: 700; }
+  .req-reason { margin-top: 8px; font-size: 14px; white-space: pre-wrap; word-break: break-word; color: var(--ink); }
+
+  .empty { text-align: center; color: var(--secondary); padding: 60px 20px; font-size: 14px; }
+  .empty .big { font-size: 38px; margin-bottom: 10px; }
+
+  .setup-warning {
+    background: #fff8e6; border-bottom: 1px solid #f0dca0; color: #7a5a10;
+    padding: 14px 16px; font-size: 13.5px; line-height: 1.6;
+  }
+  .setup-warning code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+
+  .toast {
+    position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--ink); color: var(--bg); padding: 11px 20px; border-radius: 999px;
+    font-size: 14px; font-weight: 600; opacity: 0; pointer-events: none;
+    transition: opacity .25s, transform .25s; z-index: 200;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #191612; --ink: #ece5da; --secondary: #8a8074;
+      --divider: rgba(236, 229, 218, 0.13); --field: #262019;
+      --accent: #7fb890;
+      --btn-bg: #ece5da; --btn-ink: #191612; --chip-border: rgba(236,229,218,0.2);
+      --card: #221d17;
+    }
+    header { background: rgba(25, 22, 18, 0.85); }
+    .setup-warning { background: #2a2410; border-bottom-color: #4a3f18; color: #e2c877; }
+    .req-who .unit, .person-top .unit { background: rgba(127,184,144,.15); }
+    /* iOS のカレンダーアイコンをダークでも見えるように */
+    .field input[type="date"] { color-scheme: dark; }
+  }
+</style>
+
+<!-- ============ GATE ============ -->
+<div id="gate">
+  <div class="gate-card">
+    <div class="gate-emoji">🗓️</div>
+    <h1>別曜日 出社依頼</h1>
+    <p>いつもと違う平日に出社したいときに提出してください。</p>
+    <button id="gateBtn">はじめる</button>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<header>
+  <div class="header-inner">
+    <h1>🗓️ 別曜日 出社依頼</h1>
+    <button class="reviewer-toggle" id="reviewerToggle" type="button" title="確認者モードの切り替え">
+      <span class="dot"></span>確認者
+    </button>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button type="button" class="tab on" data-tab="request" id="tabRequest">依頼</button>
+  <button type="button" class="tab" data-tab="manage" id="tabManage" style="display:none">出社管理</button>
+</nav>
+
+<div class="wrap">
+  <div id="view-request">
+  <div id="setupWarning"></div>
+
+  <!-- 提出フォーム -->
+  <form class="form" id="reqForm" autocomplete="off">
+    <p class="form-lead">出社したい日と、あなたの所属unit・名前を入力して提出してください。</p>
+
+    <div class="row2">
+      <div class="field">
+        <label for="fDiv">所属<span class="req">必須</span></label>
+        <select id="fDiv" name="div" required>
+          <option value="" disabled selected>選択してください</option>
+        </select>
+      </div>
+      <div class="field" id="unitField" style="display:none">
+        <label for="fUnit">unit<span class="req">必須</span></label>
+        <select id="fUnit" name="unit">
+          <option value="" disabled selected>選択</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="fName">名前<span class="req">必須</span></label>
+      <input id="fName" name="name" placeholder="例）山田 花子" maxlength="30" required />
+    </div>
+
+    <div class="field">
+      <label for="fDate">出社したい日付<span class="req">必須</span></label>
+      <input id="fDate" name="date" type="date" required />
+      <div class="hint">平日（月〜金）を選んでください。</div>
+    </div>
+
+    <div class="field">
+      <label for="fReason">理由・備考</label>
+      <textarea id="fReason" name="reason" placeholder="例）チームの定例に参加したいため／任意" maxlength="300"></textarea>
+    </div>
+
+    <button type="submit" class="submit-btn" id="submitBtn" disabled>この内容で提出する</button>
+  </form>
+
+  <!-- 提出一覧 -->
+  <div class="list-head">
+    <h2>提出された依頼</h2>
+    <span class="count" id="count"></span>
+  </div>
+
+  <!-- 座席残数パネル（確認者モードのみ表示） -->
+  <div class="seat-panel" id="seatPanel" style="display:none"></div>
+
+  <div class="filters">
+    <button type="button" class="filter-chip on" data-filter="pending">承認待ち</button>
+    <button type="button" class="filter-chip" data-filter="approved">承認済み</button>
+    <button type="button" class="filter-chip" data-filter="all">すべて</button>
+  </div>
+  <div id="list"></div>
+  </div><!-- /view-request -->
+
+  <!-- ============ 出社管理タブ ============ -->
+  <div id="view-manage" style="display:none">
+    <p class="manage-note">承認済みの「別曜日出社」の履歴です。各月の出社回数を人ごとに集計しています。</p>
+    <div class="manage-search">
+      <input id="mSearch" type="search" placeholder="名前・unit名で絞り込み（空欄で全員）" autocomplete="off" />
+    </div>
+    <div id="manageList"></div>
+  </div><!-- /view-manage -->
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ==================================================================
+   ▼▼▼ 設定：ここだけ書き換えてください ▼▼▼
+   （unit-tsubuyaki と同じ Supabase プロジェクトの値でOKです）
+   ================================================================== */
+const CONFIG = {
+  SUPABASE_URL: "https://poojxmakkswpmmahicfh.supabase.co",   // ← Supabaseの Project URL
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvb2p4bWFra3N3cG1tYWhpY2ZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4NDY5MTIsImV4cCI6MjEwMDQyMjkxMn0.etCj5H1YOToqPz_34oWWpV1gE4E2S9zbLx09L0ZBQo4",  // ← Supabaseの anon public key
+  // ↓ Slack通知を使う場合だけ。Slackで作った Incoming Webhook のURLを貼る（空のままなら通知しません）
+  SLACK_WEBHOOK_URL: "",                              // 例: "https://hooks.slack.com/services/T000/B000/xxxx"
+};
+/* ==================================================================
+   ▲▲▲ 設定ここまで ▲▲▲
+   ================================================================== */
+
+const TABLE = "office_requests";
+const DOW = ["日", "月", "火", "水", "木", "金", "土"];
+
+/* 所属（事業部）とその配下のunit。空配列＝unitの選択なし */
+const DIVISIONS = {
+  "SNS":  ["A", "B", "C", "D", "E", "F", "G", "H"],
+  "LINE": [],
+  "AI":   [],
+  "広告": ["A", "B", "C"],
+  "制作": [],
+};
+
+/* ── 座席残数の目安（確認者が承認判断に使う） ──
+   2Fメイン(50席)基準の、各曜日の残席数。マイナスは超過。
+   不足していても基本は3F利用で対応できる想定。            */
+const SEATS_2F_TOTAL = 50;
+const WEEKDAY_REMAINING = { 1: 6, 2: -1, 3: -1, 4: -2, 5: 11 }; // 月〜金
+const SEAT_NOTE = "※2Fメイン（50席）基準の残席数。不足していても基本は3F利用で対応できます。";
+
+let sb = null;
+let requests = [];
+let filter = "pending"; // pending | approved | all
+let reviewer = localStorage.getItem("irai_reviewer") === "1"; // 確認者モード
+let tab = "request"; // request | manage
+let manageQuery = ""; // 出社管理の絞り込みキーワード
+
+// 同じ端末から提出した依頼か判定する用（自分の提出だけ確認/取り消しの目印に使える）
+let clientId = localStorage.getItem("irai_client_id");
+if (!clientId) {
+  clientId = "c_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  localStorage.setItem("irai_client_id", clientId);
+}
+
+/* ---------- ユーティリティ ---------- */
+function esc(s) {
+  return (s || "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+}
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.classList.remove("show"), 2200);
+}
+function todayStr() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+}
+// "2026-07-30" -> {label:"7/30", dow:"（木）", isPast:false}
+function fmtDate(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return {
+    label: m + "/" + d,
+    wday: dt.getDay(),
+    dow: "（" + DOW[dt.getDay()] + "）",
+    isWeekend: dt.getDay() === 0 || dt.getDay() === 6,
+    isPast: dt < today,
+  };
+}
+// その曜日の2F残席（平日のみ数値、土日は null）
+function remainingFor(wday) {
+  return Object.prototype.hasOwnProperty.call(WEEKDAY_REMAINING, wday)
+    ? WEEKDAY_REMAINING[wday] : null;
+}
+// ステータス表示のラベル
+const STATUS_LABEL = { pending: "承認待ち", approved: "承認済み", rejected: "却下" };
+function statusOf(r) { return r.status || "pending"; }
+function submittedAgo(iso) {
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 60) return "たった今 提出";
+  if (diff < 3600) return Math.floor(diff / 60) + "分前 提出";
+  if (diff < 86400) return Math.floor(diff / 3600) + "時間前 提出";
+  const d = new Date(iso);
+  return (d.getMonth() + 1) + "/" + d.getDate() + " 提出";
+}
+
+/* ---------- ログイン画面（合言葉なし・ボタンで入る）---------- */
+const gate = document.getElementById("gate");
+document.getElementById("gateBtn").addEventListener("click", enter);
+function enter() {
+  sessionStorage.setItem("irai_unlocked", "1");
+  gate.classList.add("hidden");
+  boot();
+}
+if (sessionStorage.getItem("irai_unlocked") === "1") {
+  gate.classList.add("hidden");
+  boot();
+}
+
+/* ---------- 起動 ---------- */
+async function boot() {
+  // 日付は今日以降しか選べないように
+  const dateInput = document.getElementById("fDate");
+  dateInput.min = todayStr();
+
+  populateDivisions();
+  wireForm();
+  wireFilters();
+  wireReviewer();
+  wireTabs();
+  applyReviewerUI();
+
+  const configured =
+    CONFIG.SUPABASE_URL.startsWith("https://") &&
+    !CONFIG.SUPABASE_URL.includes("YOUR-PROJECT") &&
+    !CONFIG.SUPABASE_ANON_KEY.includes("YOUR-ANON-KEY");
+
+  if (!configured) {
+    document.getElementById("setupWarning").innerHTML =
+      '<div class="setup-warning">⚠️ <b>まだSupabaseの設定が入っていません。</b> ' +
+      'このファイル上部の <code>CONFIG</code> の <code>SUPABASE_URL</code> と ' +
+      '<code>SUPABASE_ANON_KEY</code> を書き換えると、提出内容が保存・共有されます。' +
+      '（今はお試し表示。提出しても保存されません）</div>';
+    renderEmpty();
+    return;
+  }
+
+  sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+  await loadAll();
+  subscribeRealtime();
+}
+
+/* ---------- データ取得 ---------- */
+async function loadAll() {
+  const { data, error } = await sb
+    .from(TABLE)
+    .select("*")
+    .order("requested_date", { ascending: true })
+    .order("created_at", { ascending: true });
+  if (error) { toast("読み込みに失敗しました"); console.error(error); return; }
+  requests = data || [];
+  render();
+  renderManage();
+}
+
+function subscribeRealtime() {
+  sb.channel("irai-live")
+    .on("postgres_changes", { event: "*", schema: "public", table: TABLE }, () => loadAll())
+    .subscribe();
+}
+
+/* ---------- 提出フォーム ---------- */
+// 所属（事業部）を選択肢に流し込む
+function populateDivisions() {
+  const sel = document.getElementById("fDiv");
+  Object.keys(DIVISIONS).forEach(name => {
+    const o = document.createElement("option");
+    o.value = name; o.textContent = name;
+    sel.appendChild(o);
+  });
+}
+
+// 選択中の所属に応じて unit の選択肢を出し分ける
+function onDivChange() {
+  const div = document.getElementById("fDiv").value;
+  const units = DIVISIONS[div] || [];
+  const field = document.getElementById("unitField");
+  const sel = document.getElementById("fUnit");
+  if (units.length) {
+    sel.innerHTML = '<option value="" disabled selected>選択</option>' +
+      units.map(u => `<option value="${u}">unit ${u}</option>`).join("");
+    field.style.display = "";
+  } else {
+    sel.innerHTML = '<option value="" disabled selected>選択</option>';
+    sel.value = "";
+    field.style.display = "none";
+  }
+  updateSubmitBtn();
+}
+
+// 所属に unit が必要かどうか
+function divNeedsUnit(div) {
+  return (DIVISIONS[div] || []).length > 0;
+}
+// 保存用の表示名を作る（例：SNS unitH / 広告 unitA / LINE）
+function composeUnitName(div, unit) {
+  return divNeedsUnit(div) ? `${div} unit${unit}` : div;
+}
+
+function wireForm() {
+  const form = document.getElementById("reqForm");
+  document.getElementById("fDiv").addEventListener("change", onDivChange);
+  ["fUnit", "fDate"].forEach(id =>
+    document.getElementById(id).addEventListener("change", updateSubmitBtn)
+  );
+  document.getElementById("fName").addEventListener("input", updateSubmitBtn);
+  form.addEventListener("submit", submitRequest);
+}
+function updateSubmitBtn() {
+  const div = document.getElementById("fDiv").value;
+  const unitOk = !divNeedsUnit(div) || document.getElementById("fUnit").value;
+  const ok = div && unitOk &&
+             document.getElementById("fName").value.trim() &&
+             document.getElementById("fDate").value;
+  document.getElementById("submitBtn").disabled = !ok;
+}
+
+async function submitRequest(e) {
+  e.preventDefault();
+  const div = document.getElementById("fDiv").value;
+  const unit = document.getElementById("fUnit").value;
+  const name = document.getElementById("fName").value.trim();
+  const date = document.getElementById("fDate").value;
+  const reason = document.getElementById("fReason").value.trim();
+  if (!div || (divNeedsUnit(div) && !unit) || !name || !date) return;
+
+  const btn = document.getElementById("submitBtn");
+  btn.disabled = true;
+
+  if (!sb) { toast("設定を入れると保存できます"); btn.disabled = false; return; }
+
+  const { error } = await sb.from(TABLE).insert({
+    unit_name: composeUnitName(div, unit),
+    person_name: name,
+    requested_date: date,
+    reason: reason || null,
+    client_id: clientId,
+  });
+  if (error) { toast("提出に失敗しました"); console.error(error); btn.disabled = false; return; }
+
+  // 確認者（社員）へSlack通知（設定されている場合のみ・提出者の端末から1回だけ送る）
+  notifySlack({ div, unit, name, date, reason });
+
+  // 名前と所属は次回のために残し、日付・理由だけリセット
+  document.getElementById("fDate").value = "";
+  document.getElementById("fReason").value = "";
+  updateSubmitBtn();
+  toast("提出しました 🗓️");
+  await loadAll();
+}
+
+/* ---------- Slack通知 ---------- */
+async function notifySlack({ div, unit, name, date, reason }) {
+  const url = CONFIG.SLACK_WEBHOOK_URL;
+  if (!url || !url.startsWith("https://hooks.slack.com/")) return; // 未設定なら何もしない
+
+  const d = fmtDate(date);
+  const text =
+    "🗓️ *新しい出社依頼が届きました*\n" +
+    "• 所属: " + composeUnitName(div, unit) + "\n" +
+    "• 名前: " + name + "\n" +
+    "• 希望日: " + d.label + d.dow + "\n" +
+    (reason ? "• 理由: " + reason + "\n" : "") +
+    "確認 → 承認をお願いします🙏\n" + location.href;
+
+  try {
+    // Slack Webhookはブラウザからだと CORS で応答を読めないため no-cors + form形式で送る（送信自体は成功する）
+    await fetch(url, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "payload=" + encodeURIComponent(JSON.stringify({ text })),
+    });
+  } catch (e) {
+    console.error("Slack通知に失敗しました:", e); // 通知失敗でも提出自体は成功扱い
+  }
+}
+
+/* ---------- フィルタ ---------- */
+function wireFilters() {
+  document.querySelectorAll(".filter-chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      filter = chip.dataset.filter;
+      document.querySelectorAll(".filter-chip").forEach(c => c.classList.toggle("on", c === chip));
+      render();
+    });
+  });
+}
+
+/* ---------- 描画 ---------- */
+function render() {
+  const list = document.getElementById("list");
+  let rows = requests.slice();
+
+  if (filter === "pending") rows = rows.filter(r => statusOf(r) === "pending");
+  else if (filter === "approved") rows = rows.filter(r => statusOf(r) === "approved");
+
+  document.getElementById("count").textContent = requests.length ? requests.length + "件" : "";
+  renderSeatPanel();
+
+  if (!rows.length) { renderEmpty(); return; }
+  list.innerHTML = rows.map(renderCard).join("");
+  attachCardEvents();
+}
+
+// 座席残数パネル（確認者モードのみ）
+function renderSeatPanel() {
+  const panel = document.getElementById("seatPanel");
+  if (!panel) return;
+  if (!reviewer) { panel.style.display = "none"; return; }
+  const days = [1, 2, 3, 4, 5];
+  panel.innerHTML =
+    "<h3>座席残数の目安（曜日別）</h3>" +
+    '<div class="seat-days">' +
+    days.map(w => {
+      const n = WEEKDAY_REMAINING[w];
+      return `<div class="seat-day ${n <= 0 ? "short" : ""}">
+        <div class="d">${DOW[w]}</div><div class="n">${n}</div>
+      </div>`;
+    }).join("") +
+    "</div>" +
+    `<p class="seat-note">${SEAT_NOTE}</p>`;
+  panel.style.display = "";
+}
+
+function renderEmpty() {
+  const msg = filter === "pending" ? "承認待ちの依頼はありません。"
+            : filter === "approved" ? "承認済みの依頼はありません。"
+            : "まだ提出された依頼はありません。";
+  document.getElementById("list").innerHTML =
+    '<div class="empty"><div class="big">🗓️</div>' + msg + "</div>";
+}
+
+function renderCard(r) {
+  const d = fmtDate(r.requested_date);
+  const st = statusOf(r);
+  const rem = remainingFor(d.wday);
+  const short = rem !== null && rem <= 0;
+
+  // 確認者モードのときだけ、その曜日の残席メモを出す
+  const seatInline = (reviewer && rem !== null)
+    ? `<div class="seat-inline ${short ? "short" : ""}">${DOW[d.wday]}曜の2F残席 <b>${rem}</b>${short ? "（3F利用で対応可）" : ""}</div>`
+    : "";
+
+  // 承認/却下ボタン（確認者モードのみ）。同じボタンをもう一度押すと承認待ちに戻る
+  const actions = reviewer
+    ? `<div class="review-actions">
+         <button class="rv-btn approve ${st === "approved" ? "active" : ""}" data-id="${r.id}" data-status="approved">${st === "approved" ? "✓ 承認済み" : "承認する"}</button>
+         <button class="rv-btn reject ${st === "rejected" ? "active" : ""}" data-id="${r.id}" data-status="rejected">${st === "rejected" ? "✕ 却下済み" : "却下"}</button>
+       </div>`
+    : "";
+
+  return `<div class="req-card ${st === "rejected" ? "rejected" : ""}">
+    <div class="req-top">
+      <div class="req-date">${d.label}<span class="dow">${d.dow}</span></div>
+      <span class="status-badge ${st}">${STATUS_LABEL[st]}</span>
+    </div>
+    <div class="req-who">
+      <span class="unit">${esc(r.unit_name)}</span><span class="name">${esc(r.person_name)}</span>
+    </div>
+    ${r.reason ? `<div class="req-reason">${esc(r.reason)}</div>` : ""}
+    ${seatInline}
+    <div class="req-when" style="margin-top:8px">${submittedAgo(r.created_at)}</div>
+    ${actions}
+  </div>`;
+}
+
+function attachCardEvents() {
+  document.querySelectorAll(".rv-btn").forEach(btn => {
+    btn.addEventListener("click", () => setStatus(btn.dataset.id, btn.dataset.status));
+  });
+}
+
+async function setStatus(id, target) {
+  if (!sb) { toast("設定を入れると保存できます"); return; }
+  const cur = requests.find(r => r.id === id);
+  const next = (cur && statusOf(cur) === target) ? "pending" : target; // もう一度押すと解除
+  const { error } = await sb.from(TABLE).update({ status: next }).eq("id", id);
+  if (error) { toast("更新に失敗しました"); console.error(error); return; }
+  toast(next === "approved" ? "承認しました ✓" : next === "rejected" ? "却下しました" : "承認待ちに戻しました");
+  await loadAll();
+}
+
+/* ---------- 確認者モード ---------- */
+function wireReviewer() {
+  document.getElementById("reviewerToggle").addEventListener("click", () => {
+    reviewer = !reviewer;
+    localStorage.setItem("irai_reviewer", reviewer ? "1" : "0");
+    applyReviewerUI();
+  });
+}
+function applyReviewerUI() {
+  document.getElementById("reviewerToggle").classList.toggle("on", reviewer);
+  // 出社管理タブは確認者（管理者）モードのときだけ表示
+  document.getElementById("tabManage").style.display = reviewer ? "" : "none";
+  if (!reviewer && tab === "manage") switchTab("request");
+  render();
+}
+
+/* ---------- タブ切り替え ---------- */
+function wireTabs() {
+  document.querySelectorAll(".tab").forEach(btn => {
+    btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+  });
+  const s = document.getElementById("mSearch");
+  s.addEventListener("input", () => { manageQuery = s.value.trim(); renderManage(); });
+}
+function switchTab(next) {
+  tab = next;
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.tab === next));
+  document.getElementById("view-request").style.display = next === "request" ? "" : "none";
+  document.getElementById("view-manage").style.display = next === "manage" ? "" : "none";
+  if (next === "manage") renderManage();
+}
+
+/* ---------- 出社管理（承認済みの別曜日出社を月別に集計）---------- */
+function renderManage() {
+  const box = document.getElementById("manageList");
+  if (!box) return;
+
+  const q = manageQuery.toLowerCase();
+  const approved = requests
+    .filter(r => statusOf(r) === "approved")
+    .filter(r => !q ||
+      (r.person_name || "").toLowerCase().includes(q) ||
+      (r.unit_name || "").toLowerCase().includes(q));
+
+  if (!approved.length) {
+    box.innerHTML = '<div class="empty"><div class="big">📋</div>' +
+      (manageQuery ? "該当する出社履歴はありません。" : "承認済みの出社履歴はまだありません。") + "</div>";
+    return;
+  }
+
+  // 月(YYYY-MM) → 人(unit|name) → 日付リスト
+  const byMonth = {};
+  approved.forEach(r => {
+    const mKey = r.requested_date.slice(0, 7); // "2026-07"
+    const pKey = (r.unit_name || "") + "|" + (r.person_name || "");
+    ((byMonth[mKey] ||= {})[pKey] ||= { unit: r.unit_name, name: r.person_name, dates: [] })
+      .dates.push(r.requested_date);
+  });
+
+  const months = Object.keys(byMonth).sort().reverse(); // 新しい月が上
+  box.innerHTML = months.map(mKey => {
+    const people = Object.values(byMonth[mKey])
+      .sort((a, b) => b.dates.length - a.dates.length); // 出社回数が多い順
+    const totalVisits = people.reduce((s, p) => s + p.dates.length, 0);
+    const [y, m] = mKey.split("-");
+
+    const rows = people.map(p => {
+      const chips = p.dates.sort().map(dstr => {
+        const d = fmtDate(dstr);
+        return `<span class="date-chip">${d.label}${d.dow}</span>`;
+      }).join("");
+      return `<div class="person-row">
+        <div class="person-top">
+          <span class="unit">${esc(p.unit || "-")}</span>
+          <span class="name">${esc(p.name || "-")}</span>
+          <span class="cnt"><b>${p.dates.length}</b> 回</span>
+        </div>
+        <div class="person-dates">${chips}</div>
+      </div>`;
+    }).join("");
+
+    return `<div class="month-group">
+      <div class="month-head">
+        <span class="m">${y}年${Number(m)}月</span>
+        <span class="sum">${people.length}人 / のべ${totalVisits}回</span>
+      </div>
+      ${rows}
+    </div>`;
+  }).join("");
+}
+</script>
