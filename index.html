@@ -100,6 +100,25 @@
     background: var(--field); color: var(--ink); outline: none;
   }
   .manage-search input:focus { border-color: var(--ink); }
+  .manage-modes { display: flex; gap: 8px; padding: 10px 16px 4px; }
+  .mode-chip {
+    padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border);
+    font-size: 13px; font-weight: 600; color: var(--secondary); background: transparent;
+  }
+  .mode-chip.on { border-color: var(--ink); color: var(--ink); background: var(--field); }
+  .mode-chip:active { opacity: .6; }
+
+  /* 日付ごとビュー */
+  .date-group { margin: 12px 16px 0; padding: 12px 15px; border-radius: 14px; background: var(--card); border: 1px solid var(--divider); }
+  .date-group.past { opacity: .62; }
+  .date-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+  .date-head .dt { font-size: 17px; font-weight: 800; letter-spacing: -.01em; }
+  .date-head .dt .dow { font-size: 13px; margin-left: 3px; color: var(--secondary); font-weight: 700; }
+  .date-head .cnt { font-size: 12px; color: var(--secondary); font-weight: 700; }
+  .day-person { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-top: 1px solid var(--divider); }
+  .day-person:first-of-type { border-top: none; }
+  .day-person .unit { font-size: 11px; font-weight: 700; color: var(--accent); background: rgba(90,138,106,.12); padding: 2px 8px; border-radius: 999px; }
+  .day-person .name { font-size: 14px; font-weight: 600; }
 
   .month-group { margin-top: 10px; }
   .month-head {
@@ -274,7 +293,7 @@
     }
     header { background: rgba(25, 22, 18, 0.85); }
     .setup-warning { background: #2a2410; border-bottom-color: #4a3f18; color: #e2c877; }
-    .req-who .unit, .person-top .unit { background: rgba(127,184,144,.15); }
+    .req-who .unit, .person-top .unit, .day-person .unit { background: rgba(127,184,144,.15); }
     /* iOS のカレンダーアイコンをダークでも見えるように */
     .field input[type="date"] { color-scheme: dark; }
   }
@@ -302,7 +321,7 @@
 
 <nav class="tabs">
   <button type="button" class="tab on" data-tab="request" id="tabRequest">依頼</button>
-  <button type="button" class="tab" data-tab="manage" id="tabManage" style="display:none">出社管理</button>
+  <button type="button" class="tab" data-tab="manage" id="tabManage">出社管理</button>
 </nav>
 
 <div class="wrap">
@@ -366,9 +385,13 @@
 
   <!-- ============ 出社管理タブ ============ -->
   <div id="view-manage" style="display:none">
-    <p class="manage-note">承認済みの「別曜日出社」の履歴です。各月の出社回数を人ごとに集計しています。</p>
+    <p class="manage-note">承認済みの「別曜日出社」の予定・履歴です。誰がどの日に出社するか、みんなが確認できます。</p>
     <div class="manage-search">
       <input id="mSearch" type="search" placeholder="名前・unit名で絞り込み（空欄で全員）" autocomplete="off" />
+    </div>
+    <div class="manage-modes">
+      <button type="button" class="mode-chip on" data-mode="bydate">日付ごと</button>
+      <button type="button" class="mode-chip" data-mode="byperson">人ごと（月別）</button>
     </div>
     <div id="manageList"></div>
   </div><!-- /view-manage -->
@@ -418,6 +441,7 @@ let filter = "pending"; // pending | approved | all
 let reviewer = localStorage.getItem("irai_reviewer") === "1"; // 確認者モード
 let tab = "request"; // request | manage
 let manageQuery = ""; // 出社管理の絞り込みキーワード
+let manageMode = "bydate"; // bydate（日付ごと）| byperson（人ごと・月別）
 
 // 同じ端末から提出した依頼か判定する用（自分の提出だけ確認/取り消しの目印に使える）
 let clientId = localStorage.getItem("irai_client_id");
@@ -833,9 +857,7 @@ function wireReviewer() {
 }
 function applyReviewerUI() {
   document.getElementById("reviewerToggle").classList.toggle("on", reviewer);
-  // 出社管理タブは確認者（管理者）モードのときだけ表示
-  document.getElementById("tabManage").style.display = reviewer ? "" : "none";
-  if (!reviewer && tab === "manage") switchTab("request");
+  // 出社管理タブは確認者以外（インターン）も見られる（読み取り専用）
   render();
 }
 
@@ -846,6 +868,13 @@ function wireTabs() {
   });
   const s = document.getElementById("mSearch");
   s.addEventListener("input", () => { manageQuery = s.value.trim(); renderManage(); });
+  document.querySelectorAll(".mode-chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      manageMode = chip.dataset.mode;
+      document.querySelectorAll(".mode-chip").forEach(c => c.classList.toggle("on", c === chip));
+      renderManage();
+    });
+  });
 }
 function switchTab(next) {
   tab = next;
@@ -855,7 +884,7 @@ function switchTab(next) {
   if (next === "manage") renderManage();
 }
 
-/* ---------- 出社管理（承認済みの別曜日出社を月別に集計）---------- */
+/* ---------- 出社管理（承認済みの別曜日出社。誰も見られる読み取り専用）---------- */
 function renderManage() {
   const box = document.getElementById("manageList");
   if (!box) return;
@@ -869,11 +898,41 @@ function renderManage() {
 
   if (!approved.length) {
     box.innerHTML = '<div class="empty"><div class="big">📋</div>' +
-      (manageQuery ? "該当する出社履歴はありません。" : "承認済みの出社履歴はまだありません。") + "</div>";
+      (manageQuery ? "該当する出社予定はありません。" : "承認済みの出社予定はまだありません。") + "</div>";
     return;
   }
 
-  // 月(YYYY-MM) → 人(unit|name) → 日付リスト
+  box.innerHTML = manageMode === "byperson"
+    ? renderManageByPerson(approved)
+    : renderManageByDate(approved);
+}
+
+// 日付ごと：どの日に誰が出社するか（これから→過去の順）
+function renderManageByDate(approved) {
+  const byDate = {};
+  approved.forEach(r => { (byDate[r.requested_date] ||= []).push(r); });
+
+  const dates = Object.keys(byDate);
+  const future = dates.filter(d => !fmtDate(d).isPast).sort();           // 今日以降を昇順（近い日が上）
+  const past   = dates.filter(d => fmtDate(d).isPast).sort().reverse();  // 過去は新しい順
+  const ordered = [...future, ...past];
+
+  return ordered.map(dstr => {
+    const d = fmtDate(dstr);
+    const people = byDate[dstr].slice()
+      .sort((a, b) => (a.unit_name || "").localeCompare(b.unit_name || "", "ja"));
+    const rows = people.map(p => `<div class="day-person">
+        <span class="unit">${esc(p.unit_name || "-")}</span><span class="name">${esc(p.person_name || "-")}</span>
+      </div>`).join("");
+    return `<div class="date-group ${d.isPast ? "past" : ""}">
+      <div class="date-head"><span class="dt">${d.label}<span class="dow">${d.dow}</span></span><span class="cnt">${people.length}人</span></div>
+      ${rows}
+    </div>`;
+  }).join("");
+}
+
+// 人ごと（月別）：各月の出社回数を人別に集計
+function renderManageByPerson(approved) {
   const byMonth = {};
   approved.forEach(r => {
     const mKey = r.requested_date.slice(0, 7); // "2026-07"
@@ -883,7 +942,7 @@ function renderManage() {
   });
 
   const months = Object.keys(byMonth).sort().reverse(); // 新しい月が上
-  box.innerHTML = months.map(mKey => {
+  return months.map(mKey => {
     const people = Object.values(byMonth[mKey])
       .sort((a, b) => b.dates.length - a.dates.length); // 出社回数が多い順
     const totalVisits = people.reduce((s, p) => s + p.dates.length, 0);
