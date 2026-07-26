@@ -441,7 +441,10 @@
   <div id="view-manage" style="display:none">
     <p class="manage-note">「別曜日出社」の予定・履歴です。誰がどの日に出社するか、みんなが確認できます。<br>日付ごと＝承認待ちも含めて未来→過去の順／人ごと（月別）＝承認済みの出社回数。</p>
     <div class="manage-search">
-      <input id="mSearch" type="search" placeholder="名前・unit名で絞り込み（空欄で全員）" autocomplete="off" />
+      <div class="ac-wrap">
+        <input id="mSearch" type="search" placeholder="名前・unit名で絞り込み（空欄で全員）" autocomplete="off" />
+        <div class="ac-list" id="mSearchAc"></div>
+      </div>
       <div class="manage-date">
         <input id="mDate" type="date" aria-label="日付で絞り込み" />
         <button type="button" id="mDateClear" class="mdate-clear">クリア</button>
@@ -699,8 +702,15 @@ function wireForm() {
 
 /* 名前入力のオートコンプリート（部分一致・スペース無視で候補表示） */
 function wireNameAutocomplete() {
-  const input = document.getElementById("fName");
-  const list = document.getElementById("nameAc");
+  // 提出フォームの名前欄
+  attachNameAutocomplete("fName", "nameAc", updateSubmitBtn);
+}
+
+/* インターン名の部分一致オートコンプリートを input に付与（再利用可能）
+   inputId: 入力欄 / listId: 候補リスト / onChange: 選択・変更時コールバック */
+function attachNameAutocomplete(inputId, listId, onChange) {
+  const input = document.getElementById(inputId);
+  const list = document.getElementById(listId);
   if (!input || !list) return;
   const norm = s => (s || "").toLowerCase().replace(/\s+/g, "");
   let active = -1, items = [];
@@ -716,7 +726,7 @@ function wireNameAutocomplete() {
     list.classList.add("open");
     active = -1;
     list.querySelectorAll(".ac-item").forEach(it => {
-      // mousedown/touchstartはblurより先に発火するのでpreventDefaultで選択を確定
+      // mousedown/touchはblurより先に発火するのでpreventDefaultで選択を確定
       it.addEventListener("mousedown", e => { e.preventDefault(); choose(+it.dataset.i); });
     });
   }
@@ -724,7 +734,7 @@ function wireNameAutocomplete() {
     if (i < 0 || i >= items.length) return;
     input.value = items[i];
     close();
-    updateSubmitBtn();
+    if (onChange) onChange();
   }
   input.addEventListener("input", openMatches);
   input.addEventListener("focus", () => { if (input.value.trim()) openMatches(); });
@@ -998,6 +1008,8 @@ function wireTabs() {
   });
   const s = document.getElementById("mSearch");
   s.addEventListener("input", () => { manageQuery = s.value.trim(); renderManage(); });
+  // 出社管理の検索欄にも名前候補（オートコンプリート）を付与
+  attachNameAutocomplete("mSearch", "mSearchAc", () => { manageQuery = s.value.trim(); renderManage(); });
   const dInput = document.getElementById("mDate");
   dInput.addEventListener("change", () => { manageDate = dInput.value; renderManage(); });
   document.getElementById("mDateClear").addEventListener("click", () => {
