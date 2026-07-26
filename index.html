@@ -119,6 +119,8 @@
   .day-person:first-of-type { border-top: none; }
   .day-person .unit { font-size: 11px; font-weight: 700; color: var(--accent); background: rgba(90,138,106,.12); padding: 2px 8px; border-radius: 999px; }
   .day-person .name { font-size: 14px; font-weight: 600; }
+  .day-person .pend-tag { margin-left: auto; font-size: 11px; font-weight: 700; color: #a5751a; background: rgba(210,150,30,.15); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .day-person.pending .name { color: var(--secondary); }
 
   .month-group { margin-top: 10px; }
   .month-head {
@@ -385,7 +387,7 @@
 
   <!-- ============ 出社管理タブ ============ -->
   <div id="view-manage" style="display:none">
-    <p class="manage-note">承認済みの「別曜日出社」の予定・履歴です。誰がどの日に出社するか、みんなが確認できます。</p>
+    <p class="manage-note">「別曜日出社」の予定・履歴です。誰がどの日に出社するか、みんなが確認できます。<br>日付ごと＝承認待ちも含めて未来→過去の順／人ごと（月別）＝承認済みの出社回数。</p>
     <div class="manage-search">
       <input id="mSearch" type="search" placeholder="名前・unit名で絞り込み（空欄で全員）" autocomplete="off" />
     </div>
@@ -884,51 +886,55 @@ function switchTab(next) {
   if (next === "manage") renderManage();
 }
 
-/* ---------- 出社管理（承認済みの別曜日出社。誰も見られる読み取り専用）---------- */
+/* ---------- 出社管理（誰も見られる読み取り専用）----------
+   日付ごと：承認済み＋承認待ち（＝却下以外）を表示。未来を昇順→過去。
+   人ごと（月別）：出社回数なので承認済みのみを集計。                */
 function renderManage() {
   const box = document.getElementById("manageList");
   if (!box) return;
 
   const q = manageQuery.toLowerCase();
-  const approved = requests
-    .filter(r => statusOf(r) === "approved")
-    .filter(r => !q ||
-      (r.person_name || "").toLowerCase().includes(q) ||
-      (r.unit_name || "").toLowerCase().includes(q));
+  const matchesQ = r => !q ||
+    (r.person_name || "").toLowerCase().includes(q) ||
+    (r.unit_name || "").toLowerCase().includes(q);
 
-  if (!approved.length) {
-    box.innerHTML = '<div class="empty"><div class="big">📋</div>' +
-      (manageQuery ? "該当する出社予定はありません。" : "承認済みの出社予定はまだありません。") + "</div>";
+  const nonRejected = requests.filter(r => statusOf(r) !== "rejected").filter(matchesQ); // 承認待ち＋承認済み
+  const approvedOnly = nonRejected.filter(r => statusOf(r) === "approved");
+  const dataset = manageMode === "byperson" ? approvedOnly : nonRejected;
+
+  if (!dataset.length) {
+    const msg = manageQuery ? "該当する依頼はありません。"
+      : manageMode === "byperson" ? "承認済みの出社履歴はまだありません。"
+      : "出社依頼はまだありません。";
+    box.innerHTML = '<div class="empty"><div class="big">📋</div>' + msg + "</div>";
     return;
   }
 
   box.innerHTML = manageMode === "byperson"
-    ? renderManageByPerson(approved)
-    : renderManageByDate(approved);
+    ? renderManageByPerson(dataset)
+    : renderManageByDate(dataset);
 }
 
-// 今日からの日数差（未来=正・過去=負）
-function daysFromToday(dstr) {
-  const [y, m, d] = dstr.split("-").map(Number);
-  const t0 = new Date(); t0.setHours(0, 0, 0, 0);
-  return Math.round((new Date(y, m - 1, d) - t0) / 86400000);
-}
-
-// 日付ごと：どの日に誰が出社するか（今日に近い日付から順に。同距離なら未来を先に）
-function renderManageByDate(approved) {
+// 日付ごと：どの日に誰が出社するか（未来を昇順 → 過去は新しい順）
+function renderManageByDate(rows0) {
   const byDate = {};
-  approved.forEach(r => { (byDate[r.requested_date] ||= []).push(r); });
+  rows0.forEach(r => { (byDate[r.requested_date] ||= []).push(r); });
 
-  const ordered = Object.keys(byDate).sort((a, b) =>
-    Math.abs(daysFromToday(a)) - Math.abs(daysFromToday(b)) || daysFromToday(b) - daysFromToday(a));
+  const dates = Object.keys(byDate);
+  const future = dates.filter(d => !fmtDate(d).isPast).sort();           // 今日以降を昇順（近い日が上）
+  const past   = dates.filter(d => fmtDate(d).isPast).sort().reverse();  // 過去は新しい順
+  const ordered = [...future, ...past];
 
   return ordered.map(dstr => {
     const d = fmtDate(dstr);
     const people = byDate[dstr].slice()
       .sort((a, b) => (a.unit_name || "").localeCompare(b.unit_name || "", "ja"));
-    const rows = people.map(p => `<div class="day-person">
-        <span class="unit">${esc(p.unit_name || "-")}</span><span class="name">${esc(p.person_name || "-")}</span>
-      </div>`).join("");
+    const rows = people.map(p => {
+      const pend = statusOf(p) === "pending" ? '<span class="pend-tag">承認待ち</span>' : "";
+      return `<div class="day-person${statusOf(p) === "pending" ? " pending" : ""}">
+        <span class="unit">${esc(p.unit_name || "-")}</span><span class="name">${esc(p.person_name || "-")}</span>${pend}
+      </div>`;
+    }).join("");
     return `<div class="date-group ${d.isPast ? "past" : ""}">
       <div class="date-head"><span class="dt">${d.label}<span class="dow">${d.dow}</span></span><span class="cnt">${people.length}人</span></div>
       ${rows}
