@@ -368,14 +368,14 @@
     <button type="submit" class="submit-btn" id="submitBtn" disabled>この内容で提出する</button>
   </form>
 
+  <!-- 座席残数パネル（常に表示） -->
+  <div class="seat-panel" id="seatPanel"></div>
+
   <!-- 提出一覧 -->
   <div class="list-head">
     <h2>提出された依頼</h2>
     <span class="count" id="count"></span>
   </div>
-
-  <!-- 座席残数パネル（確認者モードのみ表示） -->
-  <div class="seat-panel" id="seatPanel" style="display:none"></div>
 
   <div class="filters">
     <button type="button" class="filter-chip on" data-filter="pending">承認待ち</button>
@@ -707,11 +707,10 @@ function render() {
   attachCardEvents();
 }
 
-// 座席残数パネル（確認者モードのみ）
+// 座席残数パネル（常に表示）
 function renderSeatPanel() {
   const panel = document.getElementById("seatPanel");
   if (!panel) return;
-  if (!reviewer) { panel.style.display = "none"; return; }
   const days = [1, 2, 3, 4, 5];
   panel.innerHTML =
     "<h3>座席残数の目安（曜日別）</h3>" +
