@@ -192,6 +192,18 @@
   }
   .field textarea { resize: none; min-height: 72px; line-height: 1.5; }
   .field .hint { font-size: 12px; color: var(--secondary); margin-top: 5px; }
+  /* 名前オートコンプリート */
+  .ac-wrap { position: relative; }
+  .ac-list {
+    position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 30;
+    background: var(--card); border: 1px solid var(--divider); border-radius: 12px;
+    box-shadow: 0 10px 28px rgba(0,0,0,.14); overflow-y: auto; max-height: 244px; display: none;
+  }
+  .ac-list.open { display: block; }
+  .ac-item { padding: 11px 14px; font-size: 15px; cursor: pointer; border-top: 1px solid var(--divider); }
+  .ac-item:first-child { border-top: none; }
+  .ac-item.active, .ac-item:hover { background: var(--field); }
+  .ac-item .hl { color: var(--accent); font-weight: 800; }
   .row2 { display: flex; gap: 12px; }
   .row2 .field { flex: 1; }
   .submit-btn {
@@ -388,7 +400,10 @@
 
     <div class="field">
       <label for="fName">名前<span class="req">必須</span></label>
-      <input id="fName" name="name" placeholder="例）山田 花子" maxlength="30" required />
+      <div class="ac-wrap">
+        <input id="fName" name="name" placeholder="名前を入力（候補から選べます）" maxlength="30" autocomplete="off" required />
+        <div class="ac-list" id="nameAc"></div>
+      </div>
     </div>
 
     <div class="field">
@@ -462,6 +477,9 @@ const CONFIG = {
 const TABLE = "office_requests";
 const DOW = ["日", "月", "火", "水", "木", "金", "土"];
 
+/* インターン生の名前候補（名前入力欄でオートコンプリート表示。スプレッドシートから抽出） */
+const INTERN_NAMES = ["近藤 隆太", "小寺 恭平", "蒔田 美桜", "本間 うらら", "木場 なずな", "岸 宏亮", "廣仲 真歩", "梅原 菜摘", "川嶋 海聖", "美通 真優", "宮崎 壮太郎", "荒谷 優芽", "小堀 楓佳", "藤村 隆大", "川端 天斗", "黒坂 千尋", "大野 遥翔", "花田 彩芽", "深代 悠太", "佐竹 稲光", "直井 理子", "谷崎 鈴音", "鈴木 碧羽", "鈴木 愛翔", "太目 雅斗", "安藤 快", "山下 陽樹", "鈴木 暖乃", "後藤 遥斗", "米門 一希", "本田 直也", "加藤 歩奈美", "森賀 千世", "野口 楓花", "櫻井 正優", "竹原 來", "後宮 李果", "籾山 響翔", "松田 陽大", "山﨑 楓花", "新垣 璃夢", "千葉 桃佳", "山田 愛実", "星野 悠斗", "三浦 大輝", "馬場 優蔵", "星野 唯花", "島田 樹", "松本 愛菜", "石川 舞菜", "神谷 穂乃花", "岸浪 結衣", "金岡 伶奈", "市東 怜穏", "高木 洸亮", "岩田 美咲", "寺島 咲那", "金丸 咲楽", "武内 佑介", "岩佐 結風", "岩城 陶子", "田畑 翔也", "張 晶諾", "石松 佳奈", "川崎 佑斗", "杉浦 悠太", "佐藤 惺哉", "河村 航", "平良 隼人", "兼古 憲昇", "大川 飛由悟", "大河原 将", "八木 夏希", "住谷 双葉", "伊藤 悠貴", "笠原 真帆", "小山 耀平", "郭 依鈴", "大木 七海", "鈴木 晴菜", "神谷 奏羽", "藤本 美波", "柴田 颯大", "白澤 美里", "橋居 要", "中嶌 麻有", "月原 菜々子", "杉山 りら", "藤田 遥人", "大久保 沙南", "伊藤 瑚子", "嶋村 隆之介", "田松 沙羅", "鈴木 透真", "吉田 悠剛"];
+
 /* 所属（事業部）とその配下のunit。空配列＝unitの選択なし */
 const DIVISIONS = {
   "SNS":  ["A", "B", "C", "D", "E", "F", "G", "H"],
@@ -469,6 +487,7 @@ const DIVISIONS = {
   "AI":   [],
   "広告": ["A", "B", "C", "D"],
   "制作": [],
+  "その他": [],
 };
 
 /* ── 座席残数の目安（確認者が承認判断に使う） ──
@@ -485,6 +504,7 @@ const DIV_COLORS = {
   "AI":   { fg: "#9061e6", bg: "rgba(144,97,230,.15)" },  // 紫
   "広告": { fg: "#e0821f", bg: "rgba(224,130,31,.16)" },  // オレンジ
   "制作": { fg: "#12a394", bg: "rgba(18,163,148,.15)" },  // ティール
+  "その他": { fg: "#7c8595", bg: "rgba(124,133,149,.16)" }, // グレー
 };
 // "SNS unitH"→"SNS" / "広告TM"→"広告" / "LINE"→"LINE"（既知の部署名で始まればその部署）
 function divOf(unitName) {
@@ -584,6 +604,7 @@ async function boot() {
 
   populateDivisions();
   wireForm();
+  wireNameAutocomplete();
   wireFilters();
   wireReviewer();
   wireTabs();
@@ -674,6 +695,49 @@ function wireForm() {
   );
   document.getElementById("fName").addEventListener("input", updateSubmitBtn);
   form.addEventListener("submit", submitRequest);
+}
+
+/* 名前入力のオートコンプリート（部分一致・スペース無視で候補表示） */
+function wireNameAutocomplete() {
+  const input = document.getElementById("fName");
+  const list = document.getElementById("nameAc");
+  if (!input || !list) return;
+  const norm = s => (s || "").toLowerCase().replace(/\s+/g, "");
+  let active = -1, items = [];
+
+  function close() { list.classList.remove("open"); list.innerHTML = ""; active = -1; items = []; }
+  function openMatches() {
+    const q = norm(input.value);
+    if (!q) { close(); return; }
+    items = INTERN_NAMES.filter(n => norm(n).includes(q)).slice(0, 8);
+    if (!items.length) { close(); return; }
+    list.innerHTML = items.map((n, idx) =>
+      `<div class="ac-item${idx === active ? " active" : ""}" data-i="${idx}">${esc(n)}</div>`).join("");
+    list.classList.add("open");
+    active = -1;
+    list.querySelectorAll(".ac-item").forEach(it => {
+      // mousedown/touchstartはblurより先に発火するのでpreventDefaultで選択を確定
+      it.addEventListener("mousedown", e => { e.preventDefault(); choose(+it.dataset.i); });
+    });
+  }
+  function choose(i) {
+    if (i < 0 || i >= items.length) return;
+    input.value = items[i];
+    close();
+    updateSubmitBtn();
+  }
+  input.addEventListener("input", openMatches);
+  input.addEventListener("focus", () => { if (input.value.trim()) openMatches(); });
+  input.addEventListener("blur", () => setTimeout(close, 120));
+  input.addEventListener("keydown", e => {
+    if (!list.classList.contains("open")) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); active = Math.min(active + 1, items.length - 1); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); active = Math.max(active - 1, 0); }
+    else if (e.key === "Enter" && active >= 0) { e.preventDefault(); choose(active); return; }
+    else if (e.key === "Escape") { close(); return; }
+    else return;
+    list.querySelectorAll(".ac-item").forEach((el, idx) => el.classList.toggle("active", idx === active));
+  });
 }
 function updateSubmitBtn() {
   const div = document.getElementById("fDiv").value;
