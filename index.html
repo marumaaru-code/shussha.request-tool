@@ -907,15 +907,20 @@ function renderManage() {
     : renderManageByDate(approved);
 }
 
-// 日付ごと：どの日に誰が出社するか（これから→過去の順）
+// 今日からの日数差（未来=正・過去=負）
+function daysFromToday(dstr) {
+  const [y, m, d] = dstr.split("-").map(Number);
+  const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+  return Math.round((new Date(y, m - 1, d) - t0) / 86400000);
+}
+
+// 日付ごと：どの日に誰が出社するか（今日に近い日付から順に。同距離なら未来を先に）
 function renderManageByDate(approved) {
   const byDate = {};
   approved.forEach(r => { (byDate[r.requested_date] ||= []).push(r); });
 
-  const dates = Object.keys(byDate);
-  const future = dates.filter(d => !fmtDate(d).isPast).sort();           // 今日以降を昇順（近い日が上）
-  const past   = dates.filter(d => fmtDate(d).isPast).sort().reverse();  // 過去は新しい順
-  const ordered = [...future, ...past];
+  const ordered = Object.keys(byDate).sort((a, b) =>
+    Math.abs(daysFromToday(a)) - Math.abs(daysFromToday(b)) || daysFromToday(b) - daysFromToday(a));
 
   return ordered.map(dstr => {
     const d = fmtDate(dstr);
