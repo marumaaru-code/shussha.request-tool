@@ -486,9 +486,10 @@ const DIV_COLORS = {
   "広告": { fg: "#e0821f", bg: "rgba(224,130,31,.16)" },  // オレンジ
   "制作": { fg: "#12a394", bg: "rgba(18,163,148,.15)" },  // ティール
 };
-// "SNS unitH" → "SNS" / "LINE" → "LINE"
+// "SNS unitH"→"SNS" / "広告TM"→"広告" / "LINE"→"LINE"（既知の部署名で始まればその部署）
 function divOf(unitName) {
   const s = (unitName || "").trim();
+  for (const key of Object.keys(DIV_COLORS)) { if (s.startsWith(key)) return key; }
   const i = s.indexOf(" unit");
   return i >= 0 ? s.slice(0, i) : s;
 }
