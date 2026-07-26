@@ -44,7 +44,8 @@
   }
   #gate.hidden { display: none; }
   .gate-card { width: 100%; max-width: 340px; text-align: center; }
-  .gate-emoji { font-size: 54px; margin-bottom: 10px; }
+  .gate-logo { width: 60px; height: 60px; margin: 0 auto 14px; }
+  .gate-logo svg { width: 100%; height: 100%; display: block; }
   .gate-card h1 { font-size: 23px; margin: 0 0 6px; font-weight: 800; letter-spacing: -.02em; }
   .gate-card p { color: var(--secondary); font-size: 14px; margin: 0 0 24px; }
   .gate-card button {
@@ -62,12 +63,17 @@
     border-bottom: 1px solid var(--divider);
   }
   .header-inner {
-    max-width: 600px; margin: 0 auto; height: 58px;
-    display: flex; align-items: center; justify-content: center; position: relative;
+    max-width: 600px; margin: 0 auto; height: 58px; padding: 0 16px;
+    display: flex; align-items: center; justify-content: space-between;
   }
-  .header-inner h1 { font-size: 16px; margin: 0; font-weight: 800; letter-spacing: -.01em; }
+  .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
+  .brand .logo { display: inline-flex; flex-shrink: 0; }
+  .brand .logo svg { width: 26px; height: 26px; display: block; }
+  .lg-badge { fill: var(--ink); }
+  .lg-line { stroke: var(--bg); stroke-width: 1.8; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .brand-name { font-size: 15.5px; font-weight: 800; letter-spacing: -.01em; white-space: nowrap; }
   .reviewer-toggle {
-    position: absolute; right: 12px; display: flex; align-items: center; gap: 6px;
+    flex-shrink: 0; display: flex; align-items: center; gap: 6px;
     font-size: 12px; font-weight: 700; color: var(--secondary);
     padding: 6px 11px; border-radius: 999px; border: 1px solid var(--chip-border);
     transition: opacity .2s;
@@ -76,6 +82,11 @@
   .reviewer-toggle.on { color: var(--accent); border-color: var(--accent); background: rgba(90,138,106,.1); }
   .reviewer-toggle .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .4; }
   .reviewer-toggle.on .dot { opacity: 1; }
+  @media (min-width: 620px) {
+    .brand { gap: 11px; }
+    .brand .logo svg { width: 30px; height: 30px; }
+    .brand-name { font-size: 18px; }
+  }
 
   /* ---------- Tabs ---------- */
   .tabs {
@@ -100,6 +111,17 @@
     background: var(--field); color: var(--ink); outline: none;
   }
   .manage-search input:focus { border-color: var(--ink); }
+  .manage-date { display: flex; gap: 8px; margin-top: 8px; align-items: stretch; }
+  .manage-date input[type="date"] {
+    flex: 1; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--divider);
+    font-size: 16px; background: var(--field); color: var(--ink); outline: none; -webkit-appearance: none;
+  }
+  .manage-date input[type="date"]:focus { border-color: var(--ink); }
+  .mdate-clear {
+    font-size: 13px; font-weight: 700; color: var(--secondary); padding: 0 14px;
+    border-radius: 10px; border: 1px solid var(--chip-border); white-space: nowrap;
+  }
+  .mdate-clear:active { opacity: .6; }
   .manage-modes { display: flex; gap: 8px; padding: 10px 16px 4px; }
   .mode-chip {
     padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border);
@@ -297,14 +319,20 @@
     .setup-warning { background: #2a2410; border-bottom-color: #4a3f18; color: #e2c877; }
     .req-who .unit, .person-top .unit, .day-person .unit { background: rgba(127,184,144,.15); }
     /* iOS のカレンダーアイコンをダークでも見えるように */
-    .field input[type="date"] { color-scheme: dark; }
+    .field input[type="date"], .manage-date input[type="date"] { color-scheme: dark; }
   }
 </style>
 
 <!-- ============ GATE ============ -->
 <div id="gate">
   <div class="gate-card">
-    <div class="gate-emoji">🗓️</div>
+    <div class="gate-logo"><svg viewBox="0 0 28 28" aria-hidden="true">
+      <rect class="lg-badge" width="28" height="28" rx="8"/>
+      <rect class="lg-line" x="7.5" y="9" width="13" height="11" rx="2.5"/>
+      <line class="lg-line" x1="7.5" y1="12.5" x2="20.5" y2="12.5"/>
+      <line class="lg-line" x1="11.5" y1="6.5" x2="11.5" y2="9.5"/>
+      <line class="lg-line" x1="16.5" y1="6.5" x2="16.5" y2="9.5"/>
+    </svg></div>
     <h1>別曜日 出社依頼</h1>
     <p>いつもと違う平日に出社したいときに提出してください。</p>
     <button id="gateBtn">はじめる</button>
@@ -314,7 +342,16 @@
 <!-- ============ APP ============ -->
 <header>
   <div class="header-inner">
-    <h1>🗓️ 別曜日 出社依頼</h1>
+    <div class="brand">
+      <span class="logo"><svg viewBox="0 0 28 28" aria-hidden="true">
+        <rect class="lg-badge" width="28" height="28" rx="8"/>
+        <rect class="lg-line" x="7.5" y="9" width="13" height="11" rx="2.5"/>
+        <line class="lg-line" x1="7.5" y1="12.5" x2="20.5" y2="12.5"/>
+        <line class="lg-line" x1="11.5" y1="6.5" x2="11.5" y2="9.5"/>
+        <line class="lg-line" x1="16.5" y1="6.5" x2="16.5" y2="9.5"/>
+      </svg></span>
+      <span class="brand-name">別曜日出社依頼</span>
+    </div>
     <button class="reviewer-toggle" id="reviewerToggle" type="button" title="確認者モードの切り替え">
       <span class="dot"></span>確認者
     </button>
@@ -390,6 +427,10 @@
     <p class="manage-note">「別曜日出社」の予定・履歴です。誰がどの日に出社するか、みんなが確認できます。<br>日付ごと＝承認待ちも含めて未来→過去の順／人ごと（月別）＝承認済みの出社回数。</p>
     <div class="manage-search">
       <input id="mSearch" type="search" placeholder="名前・unit名で絞り込み（空欄で全員）" autocomplete="off" />
+      <div class="manage-date">
+        <input id="mDate" type="date" aria-label="日付で絞り込み" />
+        <button type="button" id="mDateClear" class="mdate-clear">クリア</button>
+      </div>
     </div>
     <div class="manage-modes">
       <button type="button" class="mode-chip on" data-mode="bydate">日付ごと</button>
@@ -465,6 +506,7 @@ let filter = "pending"; // pending | approved | all
 let reviewer = localStorage.getItem("irai_reviewer") === "1"; // 確認者モード
 let tab = "request"; // request | manage
 let manageQuery = ""; // 出社管理の絞り込みキーワード
+let manageDate = "";  // 出社管理のカレンダー日付フィルタ（YYYY-MM-DD）
 let manageMode = "bydate"; // bydate（日付ごと）| byperson（人ごと・月別）
 
 // 同じ端末から提出した依頼か判定する用（自分の提出だけ確認/取り消しの目印に使える）
@@ -891,6 +933,11 @@ function wireTabs() {
   });
   const s = document.getElementById("mSearch");
   s.addEventListener("input", () => { manageQuery = s.value.trim(); renderManage(); });
+  const dInput = document.getElementById("mDate");
+  dInput.addEventListener("change", () => { manageDate = dInput.value; renderManage(); });
+  document.getElementById("mDateClear").addEventListener("click", () => {
+    manageDate = ""; dInput.value = ""; renderManage();
+  });
   document.querySelectorAll(".mode-chip").forEach(chip => {
     chip.addEventListener("click", () => {
       manageMode = chip.dataset.mode;
@@ -918,13 +965,14 @@ function renderManage() {
   const matchesQ = r => !q ||
     (r.person_name || "").toLowerCase().includes(q) ||
     (r.unit_name || "").toLowerCase().includes(q);
+  const matchesDate = r => !manageDate || r.requested_date === manageDate; // カレンダー日付フィルタ
 
-  const nonRejected = requests.filter(r => statusOf(r) !== "rejected").filter(matchesQ); // 承認待ち＋承認済み
+  const nonRejected = requests.filter(r => statusOf(r) !== "rejected").filter(matchesQ).filter(matchesDate); // 承認待ち＋承認済み
   const approvedOnly = nonRejected.filter(r => statusOf(r) === "approved");
   const dataset = manageMode === "byperson" ? approvedOnly : nonRejected;
 
   if (!dataset.length) {
-    const msg = manageQuery ? "該当する依頼はありません。"
+    const msg = (manageQuery || manageDate) ? "該当する依頼はありません。"
       : manageMode === "byperson" ? "承認済みの出社履歴はまだありません。"
       : "出社依頼はまだありません。";
     box.innerHTML = '<div class="empty"><div class="big">📋</div>' + msg + "</div>";
