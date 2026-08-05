@@ -710,11 +710,12 @@ document.getElementById("gateBtn").addEventListener("click", enter);
 function enter() {
   sessionStorage.setItem("irai_unlocked", "1");
   gate.classList.add("hidden");
-  boot();
+  setTimeout(boot, 0); // スクリプト全体の初期化が終わってから起動（TDZ回避）
 }
 if (sessionStorage.getItem("irai_unlocked") === "1") {
   gate.classList.add("hidden");
-  boot();
+  // 読み込み記憶のある再訪ユーザーも、スクリプト初期化完了後に起動する
+  setTimeout(boot, 0);
 }
 
 /* ---------- 起動 ---------- */
