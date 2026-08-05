@@ -135,15 +135,36 @@
     font-size: 16px; background: var(--field); color: var(--ink); outline: none; -webkit-appearance: none;
   }
   .manage-month input[type="month"]:focus { border-color: var(--ink); }
-  .month-pick-note { font-size: 12px; color: var(--secondary); padding: 12px 16px 2px; line-height: 1.5; }
-  .att-legend { font-size: 11.5px; color: var(--secondary); padding: 4px 16px 0; line-height: 1.5; }
+  .month-pick-note { font-size: 13px; font-weight: 700; color: var(--ink); padding: 14px 16px 4px; line-height: 1.5; }
+  /* 凡例 */
+  .att-legend-box { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 4px 16px 6px; }
+  .att-legend-box .lg { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--secondary); }
+  .att-legend-box .lg.note { color: var(--accent); font-weight: 700; }
+  .att-legend-box .sw { width: 11px; height: 11px; border-radius: 3px; border: 1px solid var(--chip-border); flex-shrink: 0; }
+  .att-legend-box .sw.main { background: var(--field); }
+  .att-legend-box .sw.betsu { background: rgba(90,138,106,.5); }
+  .att-legend-box .sw.added { background: rgba(224,150,40,.6); }
+  .att-legend-box .sw.absent { background: rgba(200,90,90,.5); }
+  /* 内訳 */
+  .att-breakdown { font-size: 12px; color: var(--secondary); margin: 5px 0 2px; }
   /* 出社チップ */
   .att-chip { display: inline-flex; align-items: center; font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--chip-border); color: var(--ink); }
-  .att-chip.sched { background: var(--field); }
-  .att-chip.sched[data-abs] { cursor: pointer; }
-  .att-chip.sched[data-abs]:active { opacity: .6; }
+  .att-chip.main { background: var(--field); }
+  .att-chip.main[data-abs] { cursor: pointer; }
+  .att-chip.main[data-abs]:active { opacity: .55; }
   .att-chip.betsu { color: var(--accent); border-color: rgba(90,138,106,.4); font-weight: 700; }
+  .att-chip.added { color: #b5791a; border-color: rgba(224,150,40,.5); background: rgba(224,150,40,.1); font-weight: 700; }
+  .att-chip.added[data-del-visit] { cursor: pointer; }
+  .att-chip.added[data-del-visit]:active { opacity: .55; }
   .att-chip.absent { color: #c15b5b; border-color: rgba(200,90,90,.4); text-decoration: line-through; }
+  /* 出社日を追加 */
+  .add-visit-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .add-visit-label { font-size: 12px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+  .add-visit-input {
+    flex: 1; max-width: 190px; padding: 7px 10px; border-radius: 9px; border: 1px solid var(--divider);
+    font-size: 14px; background: var(--field); color: var(--ink); outline: none; -webkit-appearance: none;
+  }
+  .add-visit-input:focus { border-color: var(--ink); }
 
   /* 日付ごとビュー */
   .date-group { margin: 12px 16px 0; padding: 12px 15px; border-radius: 14px; background: var(--card); border: 1px solid var(--divider); }
@@ -358,7 +379,7 @@
     .setup-warning { background: #2a2410; border-bottom-color: #4a3f18; color: #e2c877; }
     .req-who .unit, .person-top .unit, .day-person .unit { background: rgba(127,184,144,.15); }
     /* iOS のカレンダーアイコンをダークでも見えるように */
-    .field input[type="date"], .manage-date input[type="date"], .manage-month input[type="month"] { color-scheme: dark; }
+    .field input[type="date"], .manage-date input[type="date"], .manage-month input[type="month"], .add-visit-input { color-scheme: dark; }
   }
 </style>
 
@@ -1211,51 +1232,119 @@ function renderManageMonthly() {
   people.forEach(p => { (groups[composeUnitName(p.d, p.u)] ||= []).push(p); });
 
   const monthReqs = requests.filter(r => statusOf(r) === "approved" && r.requested_date.slice(0, 7) === manageMonth);
-  const head = `<div class="month-pick-note">${y}年${mo}月の出社（メイン出社＝予定＋別曜日出社、欠席を差し引き）</div>`;
+  const pad = n => String(n).padStart(2, "0");
+  const mMin = `${y}-${pad(mo)}-01`, mMax = `${y}-${pad(mo)}-${pad(new Date(y, mo, 0).getDate())}`;
+
+  const head =
+    `<div class="month-pick-note">${y}年${mo}月の各インターンの出社回数です。</div>` +
+    `<div class="att-legend-box">
+       <span class="lg"><span class="sw main"></span>メイン出社（予定）</span>
+       <span class="lg"><span class="sw betsu"></span>別曜日出社</span>
+       <span class="lg"><span class="sw added"></span>追加</span>
+       <span class="lg"><span class="sw absent"></span>欠席</span>
+       ${reviewer ? '<span class="lg note">確認者：日付をタップで欠席、「＋出社日を追加」で後追い登録</span>' : ''}
+     </div>`;
 
   const body = Object.keys(groups).sort((a, b) => a.localeCompare(b, "ja")).map(uname => {
     const rows = groups[uname].sort((a, b) => a.n.localeCompare(b.n, "ja")).map(p => {
       const sched = scheduledDates(p.d, p.u, y, mo);
-      const betsu = monthReqs.filter(r => r.person_name === p.n).map(r => r.requested_date);
       const present = sched.filter(d => !isAbsent(p.n, d));
-      const total = present.length + betsu.length;
+      const absentN = sched.length - present.length;
+      const myReqs = monthReqs.filter(r => r.person_name === p.n);
+      const betsuReal = myReqs.filter(r => (r.client_id || "") !== "manual-add");
+      const added = myReqs.filter(r => (r.client_id || "") === "manual-add");
+      // 出社した日の集合（重複除去）で回数を算出
+      const attended = new Set(present); myReqs.forEach(r => attended.add(r.requested_date));
+      const total = attended.size;
 
       const schedChips = sched.map(d => {
         const fd = fmtDate(d), absent = isAbsent(p.n, d);
-        const cls = "att-chip sched" + (absent ? " absent" : "");
         const act = reviewer ? ` data-abs="${p.n}|${d}"` : "";
-        return `<span class="${cls}"${act}>${fd.label}${fd.dow}${absent ? " 欠" : ""}</span>`;
+        return `<span class="att-chip main${absent ? " absent" : ""}"${act}>${fd.label}${fd.dow}${absent ? " 欠" : ""}</span>`;
       }).join("");
-      const betsuChips = betsu.map(d => {
-        const fd = fmtDate(d);
+      const betsuChips = betsuReal.map(r => {
+        const fd = fmtDate(r.requested_date);
         return `<span class="att-chip betsu">＋${fd.label}${fd.dow}</span>`;
       }).join("");
+      const addedChips = added.map(r => {
+        const fd = fmtDate(r.requested_date);
+        const act = reviewer ? ` data-del-visit="${r.id}"` : "";
+        return `<span class="att-chip added"${act}>＋${fd.label}${fd.dow} 追加${reviewer ? " ✕" : ""}</span>`;
+      }).join("");
+
+      const breakdown = `<div class="att-breakdown">メイン ${present.length}・別曜日 ${betsuReal.length}${added.length ? `・追加 ${added.length}` : ""}${absentN ? `・欠席 ${absentN}` : ""}</div>`;
+      const addRow = reviewer
+        ? `<div class="add-visit-row">
+             <span class="add-visit-label">＋出社日を追加：</span>
+             <input type="date" class="add-visit-input" data-name="${esc(p.n)}" data-unit="${esc(uname)}" min="${mMin}" max="${mMax}" />
+           </div>`
+        : "";
 
       return `<div class="person-row">
         <div class="person-top">
           ${unitChip(uname)}<span class="name">${esc(p.n)}</span>
           <span class="cnt"><b>${total}</b> 回</span>
         </div>
-        <div class="person-dates">${schedChips}${betsuChips}</div>
+        ${breakdown}
+        <div class="person-dates">${schedChips}${betsuChips}${addedChips}</div>
+        ${addRow}
       </div>`;
     }).join("");
     return `<div class="month-group"><div class="month-head"><span class="m">${esc(uname)}</span><span class="sum">${groups[uname].length}人</span></div>${rows}</div>`;
   }).join("");
 
-  const legend = reviewer
-    ? '<p class="att-legend">※メイン出社日をタップすると「欠席」を記録／解除できます（確認者のみ）。＋は別曜日出社。</p>'
-    : '<p class="att-legend">※メイン出社＝予定。＋は別曜日出社、「欠」は欠席。</p>';
-  return head + body + legend;
+  return head + body;
 }
 
 function attachMonthlyEvents() {
   if (!reviewer) return;
-  document.querySelectorAll(".att-chip.sched[data-abs]").forEach(el => {
+  // メイン出社日タップ → 欠席の記録/解除
+  document.querySelectorAll(".att-chip.main[data-abs]").forEach(el => {
     el.addEventListener("click", () => {
       const [name, date] = el.dataset.abs.split("|");
       toggleAbsence(name, date);
     });
   });
+  // 「追加」チップタップ → 追加した出社日を削除
+  document.querySelectorAll(".att-chip.added[data-del-visit]").forEach(el => {
+    el.addEventListener("click", () => {
+      if (confirm("追加した出社日を削除しますか？")) deleteVisit(el.dataset.delVisit);
+    });
+  });
+  // 出社日を追加（日付を選ぶ）
+  document.querySelectorAll(".add-visit-input").forEach(el => {
+    el.addEventListener("change", () => { if (el.value) addVisit(el.dataset.name, el.dataset.unit, el.value); });
+  });
+}
+
+// 後追いで出社日を追加（承認済みの出社記録として保存）
+async function addVisit(name, unit, date) {
+  if (!sb || !date) return;
+  if (isHoliday(date)) { toast("祝日は追加できません"); return; }
+  const wd0 = new Date(date + "T00:00:00").getDay();
+  if (wd0 === 0 || wd0 === 6) { toast("土日は追加できません"); return; }
+  // 既に出社記録がある日は追加しない
+  const p = ROSTER.find(x => x.n === name);
+  if (p && scheduledDates(p.d, p.u, +date.slice(0, 4), +date.slice(5, 7)).includes(date)) {
+    toast("その日は元々メイン出社日です"); return;
+  }
+  if (requests.some(r => r.person_name === name && r.requested_date === date && statusOf(r) === "approved")) {
+    toast("その日は既に出社記録があります"); return;
+  }
+  const { error } = await sb.from(TABLE).insert({
+    unit_name: unit, person_name: name, requested_date: date,
+    reason: "出社（後から追加）", status: "approved", client_id: "manual-add",
+  });
+  if (error) { toast("追加に失敗しました"); console.error(error); return; }
+  toast(`${name} の出社（${fmtDate(date).label}）を追加しました`);
+  await loadAll();
+}
+async function deleteVisit(id) {
+  if (!sb) return;
+  const { error } = await sb.from(TABLE).delete().eq("id", id);
+  if (error) { toast("削除に失敗しました"); console.error(error); return; }
+  toast("追加した出社日を削除しました");
+  await loadAll();
 }
 
 async function toggleAbsence(name, date) {
