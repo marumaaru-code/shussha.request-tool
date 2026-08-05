@@ -399,7 +399,8 @@
 
 <nav class="tabs">
   <button type="button" class="tab on" data-tab="request" id="tabRequest">依頼</button>
-  <button type="button" class="tab" data-tab="manage" id="tabManage">出社管理</button>
+  <button type="button" class="tab" data-tab="history" id="tabHistory">依頼管理</button>
+  <button type="button" class="tab" data-tab="attend" id="tabAttend">出社管理</button>
 </nav>
 
 <div class="wrap">
@@ -449,44 +450,47 @@
 
   <!-- 座席残数パネル（常に表示） -->
   <div class="seat-panel" id="seatPanel"></div>
-
-  <!-- 提出一覧 -->
-  <div class="list-head">
-    <h2>提出された依頼</h2>
-    <span class="count" id="count"></span>
-  </div>
-
-  <div class="filters">
-    <button type="button" class="filter-chip on" data-filter="pending">承認待ち</button>
-    <button type="button" class="filter-chip" data-filter="approved">承認済み</button>
-    <button type="button" class="filter-chip" data-filter="all">すべて</button>
-  </div>
-  <div id="list"></div>
   </div><!-- /view-request -->
 
-  <!-- ============ 出社管理タブ ============ -->
-  <div id="view-manage" style="display:none">
-    <p class="manage-note">「別曜日出社」の予定・履歴です。誰がどの日に出社するか、みんなが確認できます。<br>日付ごと＝承認待ちも含めて未来→過去の順／人ごと（月別）＝承認済みの出社回数。</p>
+  <!-- ============ 依頼管理タブ（別曜日依頼の履歴・承認） ============ -->
+  <div id="view-history" style="display:none">
+    <p class="manage-note">別曜日出社依頼の一覧です。承認待ち／承認済み／却下の管理と、依頼の履歴を確認できます。</p>
     <div class="manage-search">
       <div class="ac-wrap">
-        <input id="mSearch" type="search" placeholder="名前・unit名で絞り込み（空欄で全員）" autocomplete="off" />
-        <div class="ac-list" id="mSearchAc"></div>
+        <input id="hSearch" type="search" placeholder="名前・unit名で絞り込み（空欄で全員）" autocomplete="off" />
+        <div class="ac-list" id="hSearchAc"></div>
       </div>
       <div class="manage-date">
-        <input id="mDate" type="date" aria-label="日付で絞り込み" />
-        <button type="button" id="mDateClear" class="mdate-clear">クリア</button>
+        <input id="hDate" type="date" aria-label="日付で絞り込み" />
+        <button type="button" id="hDateClear" class="mdate-clear">クリア</button>
       </div>
     </div>
-    <div class="manage-modes">
-      <button type="button" class="mode-chip on" data-mode="bydate">日付ごと</button>
-      <button type="button" class="mode-chip" data-mode="byperson">人ごと（月別）</button>
-      <button type="button" class="mode-chip" data-mode="month">月間出社</button>
+    <div class="list-head">
+      <h2>提出された依頼</h2>
+      <span class="count" id="count"></span>
     </div>
-    <div class="manage-month" id="manageMonthRow" style="display:none">
+    <div class="filters">
+      <button type="button" class="filter-chip on" data-filter="pending">承認待ち</button>
+      <button type="button" class="filter-chip" data-filter="approved">承認済み</button>
+      <button type="button" class="filter-chip" data-filter="all">すべて</button>
+    </div>
+    <div id="list"></div>
+  </div><!-- /view-history -->
+
+  <!-- ============ 出社管理タブ（月間の各インターンの出社回数） ============ -->
+  <div id="view-attend" style="display:none">
+    <p class="manage-note">各インターンの<b>月間の出社回数</b>です。メイン出社＝予定＋別曜日出社、欠席は差し引き。名前・unitで検索できます（例：SNS H）。</p>
+    <div class="manage-month">
       <input id="mMonth" type="month" aria-label="対象の月" />
     </div>
+    <div class="manage-search">
+      <div class="ac-wrap">
+        <input id="mSearch" type="search" placeholder="名前・unit名で絞り込み（例：SNS H）" autocomplete="off" />
+        <div class="ac-list" id="mSearchAc"></div>
+      </div>
+    </div>
     <div id="manageList"></div>
-  </div><!-- /view-manage -->
+  </div><!-- /view-attend -->
 </div>
 
 <div class="toast" id="toast"></div>
@@ -521,6 +525,7 @@ const DIVISIONS = {
   "AI":   [],
   "広告": ["A", "B", "C", "D"],
   "制作": [],
+  "フロント": [],
   "その他": [],
 };
 
@@ -573,6 +578,7 @@ const DIV_COLORS = {
   "AI":   { fg: "#9061e6", bg: "rgba(144,97,230,.15)" },  // 紫
   "広告": { fg: "#e0821f", bg: "rgba(224,130,31,.16)" },  // オレンジ
   "制作": { fg: "#12a394", bg: "rgba(18,163,148,.15)" },  // ティール
+  "フロント": { fg: "#cf5aa0", bg: "rgba(207,90,160,.15)" }, // ピンク
   "その他": { fg: "#7c8595", bg: "rgba(124,133,149,.16)" }, // グレー
 };
 // "SNS unitH"→"SNS" / "広告TM"→"広告" / "LINE"→"LINE"（既知の部署名で始まればその部署）
@@ -618,11 +624,11 @@ let absences = []; // 欠席記録 [{person_name, unit_name, absent_date}]
 let requests = [];
 let filter = "pending"; // pending | approved | all
 let reviewer = localStorage.getItem("irai_reviewer") === "1"; // 確認者モード
-let tab = "request"; // request | manage
-let manageQuery = ""; // 出社管理の絞り込みキーワード
-let manageDate = "";  // 出社管理のカレンダー日付フィルタ（YYYY-MM-DD）
-let manageMode = "bydate"; // bydate | byperson | month（月間出社）
-let manageMonth = "";      // 月間出社の対象月（YYYY-MM）
+let tab = "request"; // request | history | attend
+let histQuery = ""; // 依頼管理の絞り込みキーワード
+let histDate = "";  // 依頼管理の日付フィルタ（YYYY-MM-DD）
+let manageQuery = ""; // 出社管理（月間）の絞り込みキーワード
+let manageMonth = "";      // 出社管理（月間）の対象月（YYYY-MM）
 
 // 同じ端末から提出した依頼か判定する用（自分の提出だけ確認/取り消しの目印に使える）
 let clientId = localStorage.getItem("irai_client_id");
@@ -932,14 +938,23 @@ function wireFilters() {
 
 /* ---------- 描画 ---------- */
 function render() {
+  renderSeatPanel(); // 座席カレンダー（依頼タブ）は常に更新
   const list = document.getElementById("list");
+  if (!list) return;
   let rows = requests.slice();
 
   if (filter === "pending") rows = rows.filter(r => statusOf(r) === "pending");
   else if (filter === "approved") rows = rows.filter(r => statusOf(r) === "approved");
 
-  document.getElementById("count").textContent = requests.length ? requests.length + "件" : "";
-  renderSeatPanel();
+  // 依頼管理の 名前/unit 検索・日付フィルタ
+  const nq = (histQuery || "").toLowerCase().replace(/[\s_]/g, "").replace(/unit/g, "");
+  if (nq) rows = rows.filter(r =>
+    (r.person_name || "").toLowerCase().replace(/[\s_]/g, "").includes(nq) ||
+    (r.unit_name || "").toLowerCase().replace(/[\s_]/g, "").replace(/unit/g, "").includes(nq));
+  if (histDate) rows = rows.filter(r => r.requested_date === histDate);
+
+  const cnt = document.getElementById("count");
+  if (cnt) cnt.textContent = requests.length ? requests.length + "件" : "";
 
   if (!rows.length) { renderEmpty(); return; }
   list.innerHTML = rows.map(renderCard).join("");
@@ -1135,71 +1150,41 @@ function wireTabs() {
   document.querySelectorAll(".tab").forEach(btn => {
     btn.addEventListener("click", () => switchTab(btn.dataset.tab));
   });
-  const s = document.getElementById("mSearch");
-  s.addEventListener("input", () => { manageQuery = s.value.trim(); renderManage(); });
-  // 出社管理の検索欄にも名前候補（オートコンプリート）を付与
-  attachNameAutocomplete("mSearch", "mSearchAc", () => { manageQuery = s.value.trim(); renderManage(); });
-  const dInput = document.getElementById("mDate");
-  dInput.addEventListener("change", () => { manageDate = dInput.value; renderManage(); });
-  document.getElementById("mDateClear").addEventListener("click", () => {
-    manageDate = ""; dInput.value = ""; renderManage();
-  });
-  document.querySelectorAll(".mode-chip").forEach(chip => {
-    chip.addEventListener("click", () => {
-      manageMode = chip.dataset.mode;
-      document.querySelectorAll(".mode-chip").forEach(c => c.classList.toggle("on", c === chip));
-      const mrow = document.getElementById("manageMonthRow");
-      const mMonthEl = document.getElementById("mMonth");
-      if (manageMode === "month") {
-        if (!manageMonth) { const n = new Date(); manageMonth = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`; }
-        mMonthEl.value = manageMonth;
-        mrow.style.display = "";
-      } else {
-        mrow.style.display = "none";
-      }
-      renderManage();
-    });
-  });
+
+  // 依頼管理：名前/unit検索＋日付フィルタ
+  const hs = document.getElementById("hSearch");
+  hs.addEventListener("input", () => { histQuery = hs.value.trim(); render(); });
+  attachNameAutocomplete("hSearch", "hSearchAc", () => { histQuery = hs.value.trim(); render(); });
+  const hd = document.getElementById("hDate");
+  hd.addEventListener("change", () => { histDate = hd.value; render(); });
+  document.getElementById("hDateClear").addEventListener("click", () => { histDate = ""; hd.value = ""; render(); });
+
+  // 出社管理（月間）：名前/unit検索＋月セレクタ
+  const ms = document.getElementById("mSearch");
+  ms.addEventListener("input", () => { manageQuery = ms.value.trim(); renderManage(); });
+  attachNameAutocomplete("mSearch", "mSearchAc", () => { manageQuery = ms.value.trim(); renderManage(); });
   document.getElementById("mMonth").addEventListener("change", e => { manageMonth = e.target.value; renderManage(); });
 }
 function switchTab(next) {
   tab = next;
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.tab === next));
   document.getElementById("view-request").style.display = next === "request" ? "" : "none";
-  document.getElementById("view-manage").style.display = next === "manage" ? "" : "none";
-  if (next === "manage") renderManage();
+  document.getElementById("view-history").style.display = next === "history" ? "" : "none";
+  document.getElementById("view-attend").style.display = next === "attend" ? "" : "none";
+  if (next === "history") render();
+  if (next === "attend") {
+    if (!manageMonth) { const n = new Date(); manageMonth = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`; }
+    document.getElementById("mMonth").value = manageMonth;
+    renderManage();
+  }
 }
 
-/* ---------- 出社管理（誰も見られる読み取り専用）----------
-   日付ごと：承認済み＋承認待ち（＝却下以外）を表示。未来を昇順→過去。
-   人ごと（月別）：出社回数なので承認済みのみを集計。                */
+/* ---------- 出社管理（月間の各インターンの出社回数・読み取り専用） ---------- */
 function renderManage() {
   const box = document.getElementById("manageList");
   if (!box) return;
-
-  if (manageMode === "month") { box.innerHTML = renderManageMonthly(); attachMonthlyEvents(); return; }
-
-  const q = manageQuery.toLowerCase();
-  const matchesQ = r => !q ||
-    (r.person_name || "").toLowerCase().includes(q) ||
-    (r.unit_name || "").toLowerCase().includes(q);
-  const matchesDate = r => !manageDate || r.requested_date === manageDate; // カレンダー日付フィルタ
-
-  const nonRejected = requests.filter(r => statusOf(r) !== "rejected").filter(matchesQ).filter(matchesDate); // 承認待ち＋承認済み
-  const approvedOnly = nonRejected.filter(r => statusOf(r) === "approved");
-  const dataset = manageMode === "byperson" ? approvedOnly : nonRejected;
-
-  if (!dataset.length) {
-    const msg = (manageQuery || manageDate) ? "該当する依頼はありません。"
-      : manageMode === "byperson" ? "承認済みの出社履歴はまだありません。"
-      : "出社依頼はまだありません。";
-    box.innerHTML = '<div class="empty"><div class="big">📋</div>' + msg + "</div>";
-    return;
-  }
-
-  box.innerHTML = manageMode === "byperson"
-    ? renderManageByPerson(dataset)
-    : renderManageByDate(dataset);
+  box.innerHTML = renderManageMonthly();
+  attachMonthlyEvents();
 }
 
 // 月間出社：メイン出社日（予定）＋別曜日出社 −欠席 を人ごとに集計
