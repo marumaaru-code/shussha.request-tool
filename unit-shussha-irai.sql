@@ -37,3 +37,26 @@ create policy "anyone delete reqs" on office_requests for delete using (true);
 -- リアルタイム反映（提出・承認が全員の画面に即反映される）
 -- ※すでに追加済みだと "already a member" のエラーになりますが、その場合は無視してOKです。
 alter publication supabase_realtime add table office_requests;
+
+
+-- =====================================================================
+--  欠席記録（月間出社ビューで「ある週のメイン出社日に来られなかった人」を記録）
+--  ※この機能を使う場合だけ実行すればOKです。
+-- =====================================================================
+create table if not exists absences (
+  id          uuid primary key default gen_random_uuid(),
+  person_name text not null,     -- 欠席した人の名前
+  unit_name   text,              -- 所属（表示用）
+  absent_date date not null,     -- 欠席日（メイン出社日）
+  client_id   text,
+  created_at  timestamptz default now(),
+  unique (person_name, absent_date)
+);
+alter table absences enable row level security;
+drop policy if exists "anyone read abs"   on absences;
+create policy "anyone read abs"   on absences for select using (true);
+drop policy if exists "anyone write abs"  on absences;
+create policy "anyone write abs"  on absences for insert with check (true);
+drop policy if exists "anyone delete abs" on absences;
+create policy "anyone delete abs" on absences for delete using (true);
+alter publication supabase_realtime add table absences;

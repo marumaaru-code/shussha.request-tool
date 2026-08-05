@@ -129,6 +129,21 @@
   }
   .mode-chip.on { border-color: var(--ink); color: var(--ink); background: var(--field); }
   .mode-chip:active { opacity: .6; }
+  .manage-month { padding: 8px 16px 0; }
+  .manage-month input[type="month"] {
+    width: 100%; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--divider);
+    font-size: 16px; background: var(--field); color: var(--ink); outline: none; -webkit-appearance: none;
+  }
+  .manage-month input[type="month"]:focus { border-color: var(--ink); }
+  .month-pick-note { font-size: 12px; color: var(--secondary); padding: 12px 16px 2px; line-height: 1.5; }
+  .att-legend { font-size: 11.5px; color: var(--secondary); padding: 4px 16px 0; line-height: 1.5; }
+  /* 出社チップ */
+  .att-chip { display: inline-flex; align-items: center; font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--chip-border); color: var(--ink); }
+  .att-chip.sched { background: var(--field); }
+  .att-chip.sched[data-abs] { cursor: pointer; }
+  .att-chip.sched[data-abs]:active { opacity: .6; }
+  .att-chip.betsu { color: var(--accent); border-color: rgba(90,138,106,.4); font-weight: 700; }
+  .att-chip.absent { color: #c15b5b; border-color: rgba(200,90,90,.4); text-decoration: line-through; }
 
   /* 日付ごとビュー */
   .date-group { margin: 12px 16px 0; padding: 12px 15px; border-radius: 14px; background: var(--card); border: 1px solid var(--divider); }
@@ -343,7 +358,7 @@
     .setup-warning { background: #2a2410; border-bottom-color: #4a3f18; color: #e2c877; }
     .req-who .unit, .person-top .unit, .day-person .unit { background: rgba(127,184,144,.15); }
     /* iOS のカレンダーアイコンをダークでも見えるように */
-    .field input[type="date"], .manage-date input[type="date"] { color-scheme: dark; }
+    .field input[type="date"], .manage-date input[type="date"], .manage-month input[type="month"] { color-scheme: dark; }
   }
 </style>
 
@@ -465,6 +480,10 @@
     <div class="manage-modes">
       <button type="button" class="mode-chip on" data-mode="bydate">日付ごと</button>
       <button type="button" class="mode-chip" data-mode="byperson">人ごと（月別）</button>
+      <button type="button" class="mode-chip" data-mode="month">月間出社</button>
+    </div>
+    <div class="manage-month" id="manageMonthRow" style="display:none">
+      <input id="mMonth" type="month" aria-label="対象の月" />
     </div>
     <div id="manageList"></div>
   </div><!-- /view-manage -->
@@ -571,14 +590,39 @@ function unitChip(unitName) {
   return `<span class="unit"${style}>${esc(name)}</span>`;
 }
 
+/* 在籍中インターンの名簿（スプレッドシートから。d=部署 / u=unit）。月間出社の予定計算に使用 */
+const ROSTER = [{"n": "近藤 隆太", "d": "LINE", "u": ""}, {"n": "蒔田 美桜", "d": "SNS", "u": "F"}, {"n": "小寺 恭平", "d": "AI", "u": ""}, {"n": "本間 うらら", "d": "SNS", "u": "G"}, {"n": "木場 なずな", "d": "LINE", "u": ""}, {"n": "岸 宏亮", "d": "SNS", "u": "A"}, {"n": "須永 羽花", "d": "SNS", "u": "G"}, {"n": "廣仲 真歩", "d": "広告", "u": ""}, {"n": "川嶋 海聖", "d": "SNS", "u": "D"}, {"n": "梅原 菜摘", "d": "SNS", "u": "B"}, {"n": "宮崎 壮太郎", "d": "フロント", "u": ""}, {"n": "荒谷 優芽", "d": "広告", "u": "C"}, {"n": "小堀 楓佳", "d": "広告", "u": "B"}, {"n": "藤村 隆大", "d": "広告", "u": "A"}, {"n": "川端 天斗", "d": "SNS", "u": "D"}, {"n": "大野 遥翔", "d": "広告", "u": "D"}, {"n": "花田 彩芽", "d": "広告", "u": "D"}, {"n": "深代 悠太", "d": "開発", "u": ""}, {"n": "佐竹 稲光", "d": "SNS", "u": "H"}, {"n": "谷崎 鈴音", "d": "SNS", "u": "C"}, {"n": "直井 理子", "d": "SNS", "u": "G"}, {"n": "鈴木 碧羽", "d": "SNS", "u": "G"}, {"n": "安藤 快", "d": "広告", "u": "C"}, {"n": "山下 陽樹", "d": "広告", "u": "B"}, {"n": "鈴木 愛翔", "d": "SNS", "u": "A"}, {"n": "太目 雅斗", "d": "AI", "u": ""}, {"n": "後藤 遥斗", "d": "広告", "u": "B"}, {"n": "加藤 歩奈美", "d": "SNS", "u": "H"}, {"n": "本田 直也", "d": "開発", "u": ""}, {"n": "野口 楓花", "d": "SNS", "u": "H"}, {"n": "吉田 圭佑", "d": "開発", "u": ""}, {"n": "櫻井 正優", "d": "開発", "u": ""}, {"n": "竹原 來", "d": "SNS", "u": "H"}, {"n": "後宮 李果", "d": "SNS", "u": "A"}, {"n": "籾山 響翔", "d": "SNS", "u": "A"}, {"n": "松田 陽大", "d": "開発", "u": ""}, {"n": "新垣 璃夢", "d": "SNS", "u": "B"}, {"n": "山﨑 楓花", "d": "SNS", "u": "C"}, {"n": "千葉 桃佳", "d": "SNS", "u": "F"}, {"n": "星野 悠斗", "d": "SNS", "u": "C"}, {"n": "馬場 優蔵", "d": "SNS", "u": "F"}, {"n": "星野 唯花", "d": "SNS", "u": "D"}, {"n": "三浦 大輝", "d": "SNS", "u": "E"}, {"n": "島田 樹", "d": "SNS", "u": "C"}, {"n": "松本 愛菜", "d": "SNS", "u": "G"}, {"n": "岸浪 結衣", "d": "SNS", "u": "B"}, {"n": "神谷 穂乃花", "d": "SNS", "u": "D"}, {"n": "金岡 伶奈", "d": "広告", "u": "A"}, {"n": "高木 洸亮", "d": "SNS", "u": "G"}, {"n": "市東 怜穏", "d": "SNS", "u": "D"}, {"n": "寺島 咲那", "d": "SNS", "u": "A"}, {"n": "金丸 咲楽", "d": "SNS", "u": "C"}, {"n": "武内 佑介", "d": "AI", "u": ""}, {"n": "岩城 陶子", "d": "広告", "u": "B"}, {"n": "岩佐 結風", "d": "SNS", "u": "A"}, {"n": "佐藤 惺哉", "d": "広告", "u": "B"}, {"n": "杉浦 悠太", "d": "SNS", "u": "C"}, {"n": "田畑 翔也", "d": "SNS", "u": "F"}, {"n": "川崎 佑斗", "d": "SNS", "u": "G"}, {"n": "石松 佳奈", "d": "SNS", "u": "H"}, {"n": "大河原 将", "d": "SNS", "u": "B"}, {"n": "河村 航", "d": "SNS", "u": "B"}, {"n": "平良 隼人", "d": "広告", "u": "D"}, {"n": "兼古 憲昇", "d": "広告", "u": "C"}, {"n": "大川 飛由悟", "d": "SNS", "u": "H"}, {"n": "伊藤 悠貴", "d": "SNS", "u": "A"}, {"n": "八木 夏希", "d": "広告", "u": "A"}, {"n": "住谷 双葉", "d": "SNS", "u": "E"}, {"n": "笠原 真帆", "d": "SNS", "u": "B"}, {"n": "神谷 奏羽", "d": "広告", "u": "D"}, {"n": "大木 七海", "d": "広告", "u": "D"}, {"n": "郭 依鈴", "d": "SNS", "u": "H"}, {"n": "小山 耀平", "d": "SNS", "u": "H"}, {"n": "藤本 美波", "d": "SNS", "u": "E"}, {"n": "鈴木 晴菜", "d": "SNS", "u": "E"}, {"n": "柴田 颯大", "d": "SNS", "u": "E"}, {"n": "白澤 美里", "d": "広告", "u": "B"}, {"n": "橋居 要", "d": "広告", "u": "D"}, {"n": "中嶌 麻有", "d": "SNS", "u": "F"}, {"n": "藤田 遥人", "d": "広告", "u": "A"}, {"n": "月原 菜々子", "d": "SNS", "u": "C"}, {"n": "杉山 りら", "d": "SNS", "u": "B"}, {"n": "大久保 沙南", "d": "SNS", "u": "B"}, {"n": "伊藤 瑚子", "d": "SNS", "u": "E"}, {"n": "野上 航希", "d": "SNS", "u": "H"}, {"n": "馬場 健介", "d": "広告", "u": "C"}, {"n": "板原 海空", "d": "SNS", "u": "A"}, {"n": "川上 慧大", "d": "広告", "u": "B"}, {"n": "秋山 ゆい", "d": "SNS", "u": "A"}, {"n": "鈴木 透真", "d": "広告", "u": "B"}, {"n": "松山 奏太", "d": "広告", "u": "B"}, {"n": "小林 真緒", "d": "広告", "u": "C"}, {"n": "本村 春人", "d": "SNS", "u": "C"}, {"n": "大和 紅凜", "d": "SNS", "u": "F"}, {"n": "嶋村 隆之介", "d": "広告", "u": "D"}, {"n": "松山 心花", "d": "SNS", "u": "E"}, {"n": "香村 祐太", "d": "広告", "u": "A"}, {"n": "三谷 海地", "d": "SNS", "u": "B"}, {"n": "田松 沙羅", "d": "広告", "u": "D"}, {"n": "吉田 悠剛", "d": "広告", "u": "C"}, {"n": "熊田 和奏", "d": "SNS", "u": "G"}, {"n": "入野 陽生", "d": "SNS", "u": "A"}, {"n": "土方 兼人", "d": "SNS", "u": "B"}, {"n": "西之園 虎之介", "d": "SNS", "u": "G"}, {"n": "酒井 冬花", "d": "SNS", "u": "F"}, {"n": "今野 拓翔", "d": "広告", "u": ""}];
+
+// unit → メイン出社曜日の配列（SNSは文字、AI/フロント等は""キー）
+function unitWeekdays(div, unit) {
+  const m = UNIT_DAYS[div];
+  if (!m) return [];
+  return m[unit] || m[""] || [];
+}
+// その月のメイン出社「予定日」一覧（祝日除外）。div/unit と 年・月(1-12)
+function scheduledDates(div, unit, y, mo) {
+  const wds = unitWeekdays(div, unit);
+  if (!wds.length) return [];
+  const pad = n => String(n).padStart(2, "0");
+  const dim = new Date(y, mo, 0).getDate();
+  const out = [];
+  for (let d = 1; d <= dim; d++) {
+    const ds = `${y}-${pad(mo)}-${pad(d)}`;
+    if (wds.includes(new Date(y, mo - 1, d).getDay()) && !isHoliday(ds)) out.push(ds);
+  }
+  return out;
+}
+
 let sb = null;
+let absences = []; // 欠席記録 [{person_name, unit_name, absent_date}]
 let requests = [];
 let filter = "pending"; // pending | approved | all
 let reviewer = localStorage.getItem("irai_reviewer") === "1"; // 確認者モード
 let tab = "request"; // request | manage
 let manageQuery = ""; // 出社管理の絞り込みキーワード
 let manageDate = "";  // 出社管理のカレンダー日付フィルタ（YYYY-MM-DD）
-let manageMode = "bydate"; // bydate（日付ごと）| byperson（人ごと・月別）
+let manageMode = "bydate"; // bydate | byperson | month（月間出社）
+let manageMonth = "";      // 月間出社の対象月（YYYY-MM）
 
 // 同じ端末から提出した依頼か判定する用（自分の提出だけ確認/取り消しの目印に使える）
 let clientId = localStorage.getItem("irai_client_id");
@@ -684,13 +728,22 @@ async function loadAll() {
     .order("created_at", { ascending: true });
   if (error) { toast("読み込みに失敗しました"); console.error(error); return; }
   requests = data || [];
+  // 欠席記録（absencesテーブルが未作成でも他機能は動くようにtry/catch）
+  try {
+    const { data: ab } = await sb.from("absences").select("*");
+    absences = ab || [];
+  } catch (e) { absences = []; }
   render();
   renderManage();
+}
+function isAbsent(name, date) {
+  return absences.some(a => a.person_name === name && a.absent_date === date);
 }
 
 function subscribeRealtime() {
   sb.channel("irai-live")
     .on("postgres_changes", { event: "*", schema: "public", table: TABLE }, () => loadAll())
+    .on("postgres_changes", { event: "*", schema: "public", table: "absences" }, () => loadAll())
     .subscribe();
 }
 
@@ -1095,9 +1148,19 @@ function wireTabs() {
     chip.addEventListener("click", () => {
       manageMode = chip.dataset.mode;
       document.querySelectorAll(".mode-chip").forEach(c => c.classList.toggle("on", c === chip));
+      const mrow = document.getElementById("manageMonthRow");
+      const mMonthEl = document.getElementById("mMonth");
+      if (manageMode === "month") {
+        if (!manageMonth) { const n = new Date(); manageMonth = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`; }
+        mMonthEl.value = manageMonth;
+        mrow.style.display = "";
+      } else {
+        mrow.style.display = "none";
+      }
       renderManage();
     });
   });
+  document.getElementById("mMonth").addEventListener("change", e => { manageMonth = e.target.value; renderManage(); });
 }
 function switchTab(next) {
   tab = next;
@@ -1113,6 +1176,8 @@ function switchTab(next) {
 function renderManage() {
   const box = document.getElementById("manageList");
   if (!box) return;
+
+  if (manageMode === "month") { box.innerHTML = renderManageMonthly(); attachMonthlyEvents(); return; }
 
   const q = manageQuery.toLowerCase();
   const matchesQ = r => !q ||
@@ -1135,6 +1200,96 @@ function renderManage() {
   box.innerHTML = manageMode === "byperson"
     ? renderManageByPerson(dataset)
     : renderManageByDate(dataset);
+}
+
+// 月間出社：メイン出社日（予定）＋別曜日出社 −欠席 を人ごとに集計
+function renderManageMonthly() {
+  if (!manageMonth) { const n = new Date(); manageMonth = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`; }
+  const [y, mo] = manageMonth.split("-").map(Number);
+  const q = manageQuery.toLowerCase();
+
+  // 対象者：名簿からメイン曜日を持つ人（検索で絞り込み）
+  const people = ROSTER.filter(p => {
+    const uname = composeUnitName(p.d, p.u);
+    return unitWeekdays(p.d, p.u).length &&
+      (!q || p.n.toLowerCase().includes(q) || uname.toLowerCase().includes(q));
+  });
+  if (!people.length) {
+    return '<div class="empty"><div class="big">📅</div>' +
+      (q ? "該当するインターンがいません。" : "対象者がいません。") + "</div>";
+  }
+
+  // unitごとにまとめる
+  const groups = {};
+  people.forEach(p => { (groups[composeUnitName(p.d, p.u)] ||= []).push(p); });
+
+  const monthReqs = requests.filter(r => statusOf(r) === "approved" && r.requested_date.slice(0, 7) === manageMonth);
+  const head = `<div class="month-pick-note">${y}年${mo}月の出社（メイン出社＝予定＋別曜日出社、欠席を差し引き）</div>`;
+
+  const body = Object.keys(groups).sort((a, b) => a.localeCompare(b, "ja")).map(uname => {
+    const rows = groups[uname].sort((a, b) => a.n.localeCompare(b.n, "ja")).map(p => {
+      const sched = scheduledDates(p.d, p.u, y, mo);
+      const betsu = monthReqs.filter(r => r.person_name === p.n).map(r => r.requested_date);
+      const present = sched.filter(d => !isAbsent(p.n, d));
+      const total = present.length + betsu.length;
+
+      const schedChips = sched.map(d => {
+        const fd = fmtDate(d), absent = isAbsent(p.n, d);
+        const cls = "att-chip sched" + (absent ? " absent" : "");
+        const act = reviewer ? ` data-abs="${p.n}|${d}"` : "";
+        return `<span class="${cls}"${act}>${fd.label}${fd.dow}${absent ? " 欠" : ""}</span>`;
+      }).join("");
+      const betsuChips = betsu.map(d => {
+        const fd = fmtDate(d);
+        return `<span class="att-chip betsu">＋${fd.label}${fd.dow}</span>`;
+      }).join("");
+
+      return `<div class="person-row">
+        <div class="person-top">
+          ${unitChip(uname)}<span class="name">${esc(p.n)}</span>
+          <span class="cnt"><b>${total}</b> 回</span>
+        </div>
+        <div class="person-dates">${schedChips}${betsuChips}</div>
+      </div>`;
+    }).join("");
+    return `<div class="month-group"><div class="month-head"><span class="m">${esc(uname)}</span><span class="sum">${groups[uname].length}人</span></div>${rows}</div>`;
+  }).join("");
+
+  const legend = reviewer
+    ? '<p class="att-legend">※メイン出社日をタップすると「欠席」を記録／解除できます（確認者のみ）。＋は別曜日出社。</p>'
+    : '<p class="att-legend">※メイン出社＝予定。＋は別曜日出社、「欠」は欠席。</p>';
+  return head + body + legend;
+}
+
+function attachMonthlyEvents() {
+  if (!reviewer) return;
+  document.querySelectorAll(".att-chip.sched[data-abs]").forEach(el => {
+    el.addEventListener("click", () => {
+      const [name, date] = el.dataset.abs.split("|");
+      toggleAbsence(name, date);
+    });
+  });
+}
+
+async function toggleAbsence(name, date) {
+  if (!sb) { toast("設定を入れると保存できます"); return; }
+  const person = ROSTER.find(p => p.n === name);
+  const uname = person ? composeUnitName(person.d, person.u) : "";
+  try {
+    if (isAbsent(name, date)) {
+      const { error } = await sb.from("absences").delete().match({ person_name: name, absent_date: date });
+      if (error) throw error;
+      toast("欠席を取り消しました");
+    } else {
+      const { error } = await sb.from("absences").insert({ person_name: name, unit_name: uname, absent_date: date });
+      if (error) throw error;
+      toast("欠席として記録しました");
+    }
+    await loadAll();
+  } catch (e) {
+    console.error(e);
+    toast("欠席テーブル(absences)が未作成かもしれません");
+  }
 }
 
 // 日付ごと：どの日に誰が出社するか（未来を昇順 → 過去は新しい順）
