@@ -1,7 +1,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>別曜日 出社依頼</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="var s=document.createElement('script');s.src='https://unpkg.com/@supabase/supabase-js@2';document.head.appendChild(s);"></script>
 
 <style>
   :root {
@@ -746,9 +746,31 @@ async function boot() {
     return;
   }
 
-  sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+  // Supabaseライブラリ（CDN）の読み込みを待つ（読み込み前にboot()が走る競合を防ぐ）
+  const ok = await waitForSupabase();
+  if (!ok) {
+    document.getElementById("setupWarning").innerHTML =
+      '<div class="setup-warning">⚠️ <b>接続ライブラリの読み込みに失敗しました。</b> ' +
+      'ネットワークの都合で読み込めていない可能性があります。ページを<b>再読み込み</b>してください。</div>';
+    renderEmpty();
+    return;
+  }
+
+  sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
   await loadAll();
   subscribeRealtime();
+}
+
+// Supabaseライブラリ(window.supabase)が使えるまで待つ（最大約10秒）
+function waitForSupabase() {
+  return new Promise(resolve => {
+    let tries = 0;
+    (function check() {
+      if (window.supabase && typeof window.supabase.createClient === "function") return resolve(true);
+      if (++tries > 200) return resolve(false); // 200 × 50ms = 10秒
+      setTimeout(check, 50);
+    })();
+  });
 }
 
 /* ---------- データ取得 ---------- */
