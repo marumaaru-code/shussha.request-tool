@@ -235,21 +235,32 @@
   }
   .req-card.rejected { opacity: .55; }
 
-  /* 座席残数パネル（確認者モードのみ） */
+  /* 座席残数パネル（月カレンダー・常に表示） */
   .seat-panel {
     margin: 0 16px 14px; padding: 13px 15px; border-radius: 14px;
     background: var(--field); border: 1px solid var(--divider);
   }
-  .seat-panel h3 { font-size: 12px; font-weight: 800; margin: 0 0 9px; color: var(--secondary); letter-spacing: .02em; }
-  .seat-days { display: flex; gap: 7px; }
-  .seat-day {
-    flex: 1; text-align: center; padding: 8px 2px; border-radius: 10px; background: var(--card);
-    border: 1px solid var(--divider);
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .cal-title { font-size: 13px; font-weight: 800; }
+  .cal-nav {
+    width: 30px; height: 30px; border-radius: 8px; font-size: 18px; font-weight: 700;
+    color: var(--ink); background: var(--card); border: 1px solid var(--divider);
   }
-  .seat-day .d { font-size: 11px; color: var(--secondary); font-weight: 700; }
-  .seat-day .n { font-size: 17px; font-weight: 800; margin-top: 2px; }
-  .seat-day.short .n { color: var(--like, #ec6a6a); }
-  .seat-note { font-size: 11.5px; color: var(--secondary); margin: 9px 0 0; line-height: 1.5; }
+  .cal-nav:active { opacity: .55; }
+  .cal-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+  .cal-h { text-align: center; font-size: 11px; font-weight: 700; color: var(--secondary); padding-bottom: 2px; }
+  .cal-c {
+    min-height: 46px; border-radius: 9px; background: var(--card); border: 1px solid var(--divider);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  }
+  .cal-c.empty { background: transparent; border: none; }
+  .cal-c .cd { font-size: 10px; color: var(--secondary); font-weight: 700; }
+  .cal-c .cn { font-size: 16px; font-weight: 800; }
+  .cal-c.short .cn { color: #c15b5b; }
+  .cal-c.hol { opacity: .55; }
+  .cal-c.hol .cn { font-size: 12px; color: var(--secondary); }
+  .cal-c.today { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .seat-note { font-size: 11.5px; color: var(--secondary); margin: 10px 0 0; line-height: 1.5; }
 
   /* ステータスバッジ */
   .status-badge { font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
@@ -409,7 +420,7 @@
     <div class="field">
       <label for="fDate">出社したい日付<span class="req">必須</span></label>
       <input id="fDate" name="date" type="date" required />
-      <div class="hint">平日（月〜金）を選んでください。</div>
+      <div class="hint">平日（月〜金）を選んでください。祝日・土日は選べません。</div>
     </div>
 
     <div class="field">
@@ -506,11 +517,34 @@ const UNIT_DAYS = {
 const SEATS_3F_TOTAL = 22;  // 3Fの座席数（作業スペース）
 
 /* ── 座席残数の目安（確認者が承認判断に使う） ──
-   2Fメイン(50席)基準の、各曜日の残席数。マイナスは超過。
-   不足していても基本は3F利用で対応できる想定。            */
+   各曜日の「基準残席」（実測ベースを60席に補正した値）。
+   実際の残席 = 基準残席 −（その日の別曜日出社の承認済み人数）で日付ごとに算出。 */
 const SEATS_2F_TOTAL = 60;
-const WEEKDAY_REMAINING = { 1: 6, 2: -1, 3: -1, 4: -2, 5: 11 }; // 月〜金
+const WEEKDAY_BASE = { 1: 16, 2: 9, 3: 9, 4: 8, 5: 21 }; // 月〜金の基準残席（編集可）
 const SEAT_NOTE = "※2Fメイン（60席）基準の残席数です。加えて3Fにも22席あり（インターンの作業スペースとしてよく利用されています）、2Fが不足しても3Fで対応できます。";
+
+/* 日本の祝日（2026年・編集可）。この日付は出社日に選べず、残席カレンダーでも「祝」表示。 */
+const HOLIDAYS = {
+  "2026-01-01": "元日", "2026-01-12": "成人の日", "2026-02-11": "建国記念の日",
+  "2026-02-23": "天皇誕生日", "2026-03-20": "春分の日", "2026-04-29": "昭和の日",
+  "2026-05-03": "憲法記念日", "2026-05-04": "みどりの日", "2026-05-05": "こどもの日", "2026-05-06": "振替休日",
+  "2026-07-20": "海の日", "2026-08-11": "山の日", "2026-09-21": "敬老の日", "2026-09-22": "国民の休日",
+  "2026-09-23": "秋分の日", "2026-10-12": "スポーツの日", "2026-11-03": "文化の日", "2026-11-23": "勤労感謝の日",
+};
+function isHoliday(dateStr) { return Object.prototype.hasOwnProperty.call(HOLIDAYS, dateStr); }
+// その日付の別曜日出社（承認済み）人数
+function approvedOnDate(dateStr) {
+  return requests.filter(r => statusOf(r) === "approved" && r.requested_date === dateStr).length;
+}
+// その日付の2F残席 = 基準残席(曜日) − 承認済み別曜日人数（平日のみ数値、土日祝はnull）
+function seatRemainingOn(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const wd = new Date(y, m - 1, d).getDay();
+  if (wd === 0 || wd === 6 || isHoliday(dateStr)) return null;
+  const base = WEEKDAY_BASE[wd];
+  if (base === undefined) return null;
+  return base - approvedOnDate(dateStr);
+}
 
 /* 部署（所属）ごとの表示色。LINEは緑指定、その他は異なる色。 */
 const DIV_COLORS = {
@@ -580,11 +614,6 @@ function fmtDate(dateStr) {
     isWeekend: dt.getDay() === 0 || dt.getDay() === 6,
     isPast: dt < today,
   };
-}
-// その曜日の2F残席（平日のみ数値、土日は null）
-function remainingFor(wday) {
-  return Object.prototype.hasOwnProperty.call(WEEKDAY_REMAINING, wday)
-    ? WEEKDAY_REMAINING[wday] : null;
 }
 // ステータス表示のラベル
 const STATUS_LABEL = { pending: "承認待ち", approved: "承認済み", rejected: "却下" };
@@ -779,6 +808,11 @@ async function submitRequest(e) {
   const reason = document.getElementById("fReason").value.trim();
   if (!div || (divNeedsUnit(div) && !unit) || !name || !date) return;
 
+  // 祝日・土日は出社日に選べない
+  if (isHoliday(date)) { toast(`${HOLIDAYS[date]}（祝日）は選べません`); return; }
+  const wd0 = new Date(date + "T00:00:00").getDay();
+  if (wd0 === 0 || wd0 === 6) { toast("土日は選べません。平日を選んでください"); return; }
+
   const btn = document.getElementById("submitBtn");
   btn.disabled = true;
 
@@ -858,23 +892,51 @@ function render() {
   attachCardEvents();
 }
 
-// 座席残数パネル（常に表示）
+// 座席残数パネル（月カレンダー・常に表示）
+let seatY = null, seatM = null; // 表示中の年・月(1-12)
 function renderSeatPanel() {
   const panel = document.getElementById("seatPanel");
   if (!panel) return;
-  const days = [1, 2, 3, 4, 5];
+  const now = new Date();
+  if (seatY === null) { seatY = now.getFullYear(); seatM = now.getMonth() + 1; }
+  const pad = n => String(n).padStart(2, "0");
+  const colOf = wd => (wd === 0 || wd === 6) ? -1 : wd - 1; // 月=0…金=4、土日=-1
+  const daysInMonth = new Date(seatY, seatM, 0).getDate();
+
+  const weeks = [];
+  let row = [null, null, null, null, null];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const c = colOf(new Date(seatY, seatM - 1, d).getDay());
+    if (c < 0) continue;
+    if (c === 0 && row.some(x => x !== null)) { weeks.push(row); row = [null, null, null, null, null]; }
+    row[c] = d;
+    if (c === 4) { weeks.push(row); row = [null, null, null, null, null]; }
+  }
+  if (row.some(x => x !== null)) weeks.push(row);
+
+  const today = todayStr();
+  const head = ["月", "火", "水", "木", "金"].map(x => `<div class="cal-h">${x}</div>`).join("");
+  const body = weeks.map(wk => wk.map(d => {
+    if (!d) return '<div class="cal-c empty"></div>';
+    const ds = `${seatY}-${pad(seatM)}-${pad(d)}`;
+    const t = ds === today ? " today" : "";
+    if (isHoliday(ds)) return `<div class="cal-c hol${t}" title="${esc(HOLIDAYS[ds])}"><span class="cd">${d}</span><span class="cn">祝</span></div>`;
+    const rem = seatRemainingOn(ds);
+    const short = rem !== null && rem <= 0 ? " short" : "";
+    return `<div class="cal-c${short}${t}"><span class="cd">${d}</span><span class="cn">${rem}</span></div>`;
+  }).join("")).join("");
+
   panel.innerHTML =
-    "<h3>座席残数の目安（曜日別）</h3>" +
-    '<div class="seat-days">' +
-    days.map(w => {
-      const n = WEEKDAY_REMAINING[w];
-      return `<div class="seat-day ${n <= 0 ? "short" : ""}">
-        <div class="d">${DOW[w]}</div><div class="n">${n}</div>
-      </div>`;
-    }).join("") +
-    "</div>" +
-    `<p class="seat-note">${SEAT_NOTE}</p>`;
+    `<div class="cal-head">
+       <button class="cal-nav" id="seatPrev" type="button" aria-label="前の月">‹</button>
+       <span class="cal-title">${seatY}年${seatM}月の2F残席</span>
+       <button class="cal-nav" id="seatNext" type="button" aria-label="次の月">›</button>
+     </div>
+     <div class="cal-grid">${head}${body}</div>
+     <p class="seat-note">${SEAT_NOTE}</p>`;
   panel.style.display = "";
+  document.getElementById("seatPrev").addEventListener("click", () => { if (--seatM < 1) { seatM = 12; seatY--; } renderSeatPanel(); });
+  document.getElementById("seatNext").addEventListener("click", () => { if (++seatM > 12) { seatM = 1; seatY++; } renderSeatPanel(); });
 }
 
 function renderEmpty() {
@@ -888,12 +950,12 @@ function renderEmpty() {
 function renderCard(r) {
   const d = fmtDate(r.requested_date);
   const st = statusOf(r);
-  const rem = remainingFor(d.wday);
+  const rem = seatRemainingOn(r.requested_date); // その日の2F残席（別曜日承認分を反映）
   const short = rem !== null && rem <= 0;
 
-  // 確認者モードのときだけ、その曜日の残席メモを出す
+  // 確認者モードのときだけ、その日の2F残席メモを出す
   const seatInline = (reviewer && rem !== null)
-    ? `<div class="seat-inline ${short ? "short" : ""}">${DOW[d.wday]}曜の2F残席 <b>${rem}</b>${short ? "（3F利用で対応可）" : ""}</div>`
+    ? `<div class="seat-inline ${short ? "short" : ""}">${d.label}${d.dow}の2F残席 <b>${rem}</b>${short ? "（3F利用で対応可）" : ""}</div>`
     : "";
 
   // 確認者コメント：インターン側（非確認者）には読み取り表示、確認者には編集欄
