@@ -247,10 +247,11 @@
     color: var(--ink); background: var(--card); border: 1px solid var(--divider);
   }
   .cal-nav:active { opacity: .55; }
-  .cal-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
-  .cal-h { text-align: center; font-size: 11px; font-weight: 700; color: var(--secondary); padding-bottom: 2px; }
+  .cal-dow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 4px; }
+  .cal-dow span { text-align: center; font-size: 11px; font-weight: 700; color: var(--secondary); }
+  .cal-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; grid-auto-rows: 48px; }
   .cal-c {
-    min-height: 46px; border-radius: 9px; background: var(--card); border: 1px solid var(--divider);
+    border-radius: 9px; background: var(--card); border: 1px solid var(--divider);
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
   }
   .cal-c.empty { background: transparent; border: none; }
@@ -915,7 +916,7 @@ function renderSeatPanel() {
   if (row.some(x => x !== null)) weeks.push(row);
 
   const today = todayStr();
-  const head = ["月", "火", "水", "木", "金"].map(x => `<div class="cal-h">${x}</div>`).join("");
+  const dow = ["月", "火", "水", "木", "金"].map(x => `<span>${x}</span>`).join("");
   const body = weeks.map(wk => wk.map(d => {
     if (!d) return '<div class="cal-c empty"></div>';
     const ds = `${seatY}-${pad(seatM)}-${pad(d)}`;
@@ -932,7 +933,8 @@ function renderSeatPanel() {
        <span class="cal-title">${seatY}年${seatM}月の2F残席</span>
        <button class="cal-nav" id="seatNext" type="button" aria-label="次の月">›</button>
      </div>
-     <div class="cal-grid">${head}${body}</div>
+     <div class="cal-dow">${dow}</div>
+     <div class="cal-grid">${body}</div>
      <p class="seat-note">${SEAT_NOTE}</p>`;
   panel.style.display = "";
   document.getElementById("seatPrev").addEventListener("click", () => { if (--seatM < 1) { seatM = 12; seatY--; } renderSeatPanel(); });
