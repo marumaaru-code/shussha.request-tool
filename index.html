@@ -1206,13 +1206,15 @@ function renderManage() {
 function renderManageMonthly() {
   if (!manageMonth) { const n = new Date(); manageMonth = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`; }
   const [y, mo] = manageMonth.split("-").map(Number);
-  const q = manageQuery.toLowerCase();
+  // "sns_unitH" / "SNS H" / "snsh" などを揺れずに照合（unit・空白・_を無視）
+  const nrm = s => (s || "").toLowerCase().replace(/[\s_]/g, "").replace(/unit/g, "");
+  const q = nrm(manageQuery);
 
   // 対象者：名簿からメイン曜日を持つ人（検索で絞り込み）
   const people = ROSTER.filter(p => {
     const uname = composeUnitName(p.d, p.u);
     return unitWeekdays(p.d, p.u).length &&
-      (!q || p.n.toLowerCase().includes(q) || uname.toLowerCase().includes(q));
+      (!q || nrm(p.n).includes(q) || nrm(uname).includes(q));
   });
   if (!people.length) {
     return '<div class="empty"><div class="big">📅</div>' +
