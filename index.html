@@ -82,6 +82,9 @@
   .reviewer-toggle.on { color: var(--accent); border-color: var(--accent); background: rgba(90,138,106,.1); }
   .reviewer-toggle .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .4; }
   .reviewer-toggle.on .dot { opacity: 1; }
+  /* 確認者モード中は全体をうっすら緑がかった色に */
+  body.reviewer-on { --bg: #edf5f0; --field: #e4efe8; }
+  body.reviewer-on header { background: rgba(237, 245, 240, 0.85); box-shadow: inset 0 -2px 0 rgba(90,138,106,.35); }
   @media (min-width: 620px) {
     .brand { gap: 11px; }
     .brand .logo svg { width: 30px; height: 30px; }
@@ -376,6 +379,8 @@
       --card: #221d17;
     }
     header { background: rgba(25, 22, 18, 0.85); }
+    body.reviewer-on { --bg: #141a16; --field: #1c241f; }
+    body.reviewer-on header { background: rgba(20, 26, 22, 0.88); box-shadow: inset 0 -2px 0 rgba(127,184,144,.4); }
     .setup-warning { background: #2a2410; border-bottom-color: #4a3f18; color: #e2c877; }
     .req-who .unit, .person-top .unit, .day-person .unit { background: rgba(127,184,144,.15); }
     /* iOS のカレンダーアイコンをダークでも見えるように */
@@ -1162,8 +1167,9 @@ function wireReviewer() {
 }
 function applyReviewerUI() {
   document.getElementById("reviewerToggle").classList.toggle("on", reviewer);
-  // 出社管理タブは確認者以外（インターン）も見られる（読み取り専用）
+  document.body.classList.toggle("reviewer-on", reviewer); // 確認者モード中は全体をうっすら色付け
   render();
+  renderManage();
 }
 
 /* ---------- タブ切り替え ---------- */
@@ -1242,7 +1248,7 @@ function renderManageMonthly() {
        <span class="lg"><span class="sw betsu"></span>別曜日出社</span>
        <span class="lg"><span class="sw added"></span>追加</span>
        <span class="lg"><span class="sw absent"></span>欠席</span>
-       ${reviewer ? '<span class="lg note">確認者：日付をタップで欠席、「＋出社日を追加」で後追い登録</span>' : ''}
+       <span class="lg note">メイン出社日をタップで欠席の記録／解除、「＋出社日を追加」で出社した日を追加できます</span>
      </div>`;
 
   const body = Object.keys(groups).sort((a, b) => a.localeCompare(b, "ja")).map(uname => {
@@ -1259,8 +1265,7 @@ function renderManageMonthly() {
 
       const schedChips = sched.map(d => {
         const fd = fmtDate(d), absent = isAbsent(p.n, d);
-        const act = reviewer ? ` data-abs="${p.n}|${d}"` : "";
-        return `<span class="att-chip main${absent ? " absent" : ""}"${act}>${fd.label}${fd.dow}${absent ? " 欠" : ""}</span>`;
+        return `<span class="att-chip main${absent ? " absent" : ""}" data-abs="${p.n}|${d}">${fd.label}${fd.dow}${absent ? " 欠" : ""}</span>`;
       }).join("");
       const betsuChips = betsuReal.map(r => {
         const fd = fmtDate(r.requested_date);
@@ -1268,17 +1273,14 @@ function renderManageMonthly() {
       }).join("");
       const addedChips = added.map(r => {
         const fd = fmtDate(r.requested_date);
-        const act = reviewer ? ` data-del-visit="${r.id}"` : "";
-        return `<span class="att-chip added"${act}>＋${fd.label}${fd.dow} 追加${reviewer ? " ✕" : ""}</span>`;
+        return `<span class="att-chip added" data-del-visit="${r.id}">＋${fd.label}${fd.dow} 追加 ✕</span>`;
       }).join("");
 
       const breakdown = `<div class="att-breakdown">メイン ${present.length}・別曜日 ${betsuReal.length}${added.length ? `・追加 ${added.length}` : ""}${absentN ? `・欠席 ${absentN}` : ""}</div>`;
-      const addRow = reviewer
-        ? `<div class="add-visit-row">
+      const addRow = `<div class="add-visit-row">
              <span class="add-visit-label">＋出社日を追加：</span>
              <input type="date" class="add-visit-input" data-name="${esc(p.n)}" data-unit="${esc(uname)}" min="${mMin}" max="${mMax}" />
-           </div>`
-        : "";
+           </div>`;
 
       return `<div class="person-row">
         <div class="person-top">
@@ -1297,7 +1299,6 @@ function renderManageMonthly() {
 }
 
 function attachMonthlyEvents() {
-  if (!reviewer) return;
   // メイン出社日タップ → 欠席の記録/解除
   document.querySelectorAll(".att-chip.main[data-abs]").forEach(el => {
     el.addEventListener("click", () => {
