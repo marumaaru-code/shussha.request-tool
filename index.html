@@ -1160,15 +1160,16 @@ function renderCard(r) {
        </div>`
     : "";
 
-  // 承認/却下・削除ボタン（確認者モードのみ）。承認/却下は同じボタンをもう一度押すと承認待ちに戻る
+  // 承認/却下・コメントは確認者モードのみ
   const actions = reviewer
     ? `<div class="review-actions">
          <button class="rv-btn approve ${st === "approved" ? "active" : ""}" data-id="${r.id}" data-status="approved">${st === "approved" ? "✓ 承認済み" : "承認する"}</button>
          <button class="rv-btn reject ${st === "rejected" ? "active" : ""}" data-id="${r.id}" data-status="rejected">${st === "rejected" ? "✕ 却下済み" : "却下"}</button>
        </div>
-       ${commentEditor}
-       <div class="del-row"><button class="del-btn" data-del="${r.id}">🗑 この依頼を削除</button></div>`
+       ${commentEditor}`
     : "";
+  // 削除は誰でも可（インターンも自分の依頼を取り消せる）
+  const deleteRow = `<div class="del-row"><button class="del-btn" data-del="${r.id}">🗑 この依頼を削除</button></div>`;
 
   return `<div class="req-card ${st === "rejected" ? "rejected" : ""}">
     <div class="req-top">
@@ -1183,6 +1184,7 @@ function renderCard(r) {
     ${seatInline}
     <div class="req-when" style="margin-top:8px">${submittedAgo(r.created_at)}</div>
     ${actions}
+    ${deleteRow}
   </div>`;
 }
 
