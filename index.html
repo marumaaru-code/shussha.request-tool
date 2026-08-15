@@ -1052,15 +1052,14 @@ async function notifySlack({ div, unit, name, date, reason }) {
 async function notifySlackDelete(r) {
   const unitName = r.unit_name || "";
   const d = fmtDate(r.requested_date);
-  const { mention, cc, useLinkNames } = slackMentions(unitName, r.requested_date);
+  // 取り消し通知はメンションなし（告知のみ）
   const text =
     "🗑 *出社依頼が取り消されました*\n" +
-    mention + (cc ? "cc: " + cc + " " : "") + "\n" +
     "• 所属: " + unitName + "\n" +
     "• 名前: " + (r.person_name || "") + "\n" +
     "• 希望日: " + d.label + d.dow + "\n" +
     "（この依頼は取り消されたため、承認は不要です）";
-  await postSlack(text, useLinkNames);
+  await postSlack(text, false);
 }
 
 /* ---------- フィルタ ---------- */
