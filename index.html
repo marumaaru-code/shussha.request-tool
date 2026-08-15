@@ -996,12 +996,9 @@ function sideOf(div) {
   return null;
 }
 
-async function notifySlack({ div, unit, name, date, reason }) {
-  const url = slackWebhook || CONFIG.SLACK_WEBHOOK_URL;
-  if (!url || !url.startsWith("https://hooks.slack.com/")) return; // 未設定なら何もしない
-
-  const d = fmtDate(date);
-  // 希望日の曜日 × SNS/広告 で承認担当を特定
+// 所属名(例 "SNS unitH")＋希望日 から、承認担当メンション＋unitリーダーccを作る
+function slackMentions(unitName, date) {
+  const div = divOf(unitName);
   const side = sideOf(div);
   const wd = new Date(date + "T00:00:00").getDay(); // 1=月…5=金
   let entry = side && APPROVERS[side] ? APPROVERS[side][wd] : null;
@@ -1009,18 +1006,36 @@ async function notifySlack({ div, unit, name, date, reason }) {
   let mention = "", useLinkNames = false;
   if (Array.isArray(entry) && entry.length) {
     mention = entry.map(a => a.id ? `<@${a.id}>` : a.n).join(" ") + " ";
-    useLinkNames = entry.some(a => !a.id); // IDが無い担当は名前テキスト（link_namesで自動リンク試行）
+    useLinkNames = entry.some(a => !a.id);
   }
-
-  // 申請を出したunitの社員リーダーをccメンション
-  const unitName = composeUnitName(div, unit);
   const leader = UNIT_LEADERS[unitName];
   let cc = "";
   if (leader && (leader.id || leader.n)) {
     cc = leader.id ? `<@${leader.id}>` : leader.n;
     if (!leader.id) useLinkNames = true;
   }
+  return { mention, cc, useLinkNames };
+}
 
+// Slackへ実際に送信（no-cors + form形式）
+async function postSlack(text, useLinkNames) {
+  const url = slackWebhook || CONFIG.SLACK_WEBHOOK_URL;
+  if (!url || !url.startsWith("https://hooks.slack.com/")) return;
+  const payload = useLinkNames ? { text, link_names: 1 } : { text };
+  try {
+    await fetch(url, {
+      method: "POST", mode: "no-cors",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "payload=" + encodeURIComponent(JSON.stringify(payload)),
+    });
+  } catch (e) { console.error("Slack通知に失敗しました:", e); }
+}
+
+// 新規依頼の通知
+async function notifySlack({ div, unit, name, date, reason }) {
+  const unitName = composeUnitName(div, unit);
+  const d = fmtDate(date);
+  const { mention, cc, useLinkNames } = slackMentions(unitName, date);
   const text =
     "🗓️ *新しい出社依頼が届きました*\n" +
     mention + "承認をお願いします🙏\n" +
@@ -1030,19 +1045,22 @@ async function notifySlack({ div, unit, name, date, reason }) {
     "• 希望日: " + d.label + d.dow + "\n" +
     (reason ? "• 理由: " + reason + "\n" : "") +
     "確認 → " + location.href;
+  await postSlack(text, useLinkNames);
+}
 
-  const payload = useLinkNames ? { text, link_names: 1 } : { text };
-  try {
-    // Slack Webhookはブラウザからだと CORS で応答を読めないため no-cors + form形式で送る（送信自体は成功する）
-    await fetch(url, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: "payload=" + encodeURIComponent(JSON.stringify(payload)),
-    });
-  } catch (e) {
-    console.error("Slack通知に失敗しました:", e); // 通知失敗でも提出自体は成功扱い
-  }
+// 依頼が削除（取り消し）されたときの通知
+async function notifySlackDelete(r) {
+  const unitName = r.unit_name || "";
+  const d = fmtDate(r.requested_date);
+  const { mention, cc, useLinkNames } = slackMentions(unitName, r.requested_date);
+  const text =
+    "🗑 *出社依頼が取り消されました*\n" +
+    mention + (cc ? "cc: " + cc + " " : "") + "\n" +
+    "• 所属: " + unitName + "\n" +
+    "• 名前: " + (r.person_name || "") + "\n" +
+    "• 希望日: " + d.label + d.dow + "\n" +
+    "（この依頼は取り消されたため、承認は不要です）";
+  await postSlack(text, useLinkNames);
 }
 
 /* ---------- フィルタ ---------- */
@@ -1228,6 +1246,8 @@ async function deleteRequest(id) {
   if (!confirm(`「${label}」の依頼を削除します。\n元に戻せません。よろしいですか？`)) return;
   const { error } = await sb.from(TABLE).delete().eq("id", id);
   if (error) { toast("削除に失敗しました"); console.error(error); return; }
+  // 承認待ちの依頼が消えたことをSlackにも知らせる（承認依頼が生きているのはpendingのみ）
+  if (r && statusOf(r) === "pending") notifySlackDelete(r);
   toast("削除しました 🗑");
   await loadAll();
 }
