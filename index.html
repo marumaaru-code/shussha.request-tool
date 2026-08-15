@@ -542,27 +542,27 @@ const CONFIG = {
    広告の月曜は "SNS" 指定＝SNSの月曜担当にメンション（運用ルールどおり）。 */
 const APPROVERS = {
   "SNS": {
-    1: [{ n: "@otani（sae）", id: "" }, { n: "@nanami(homma)", id: "" }, { n: "@Sakaue (Kouhei)", id: "" }],
-    2: [{ n: "@arai（akane）", id: "" }],
-    3: [{ n: "@Watanabe (Jura)", id: "" }],
-    4: [{ n: "@tanaka(rui)", id: "" }, { n: "@Naoki.Kobayashi（けんこば）", id: "" }],
-    5: [{ n: "@arakawa(haruka)taki", id: "" }],
+    1: [{ n: "@otani（sae）", id: "U07V1LA5UH4" }, { n: "@nanami(homma)", id: "" }, { n: "@Sakaue (Kouhei)", id: "U063M46BSS1" }],
+    2: [{ n: "@arai（akane）", id: "U08EWPFNYH4" }],
+    3: [{ n: "@Watanabe (Jura)", id: "U06SHV6LRJ5" }],
+    4: [{ n: "@tanaka(rui)", id: "U06TPRP7YUV" }, { n: "@Naoki.Kobayashi（けんこば）", id: "U0AA49QGZ9S" }],
+    5: [{ n: "@arakawa(haruka)taki", id: "U073JKE5916" }],
   },
   "広告": {
     1: "SNS", // 月曜出社希望はSNSの月曜担当にメンション
-    2: [{ n: "@matsumoto(katsumi)", id: "" }],
-    3: [{ n: "@yamashita (riki)", id: "" }],
-    4: [{ n: "@Ando(kai)", id: "" }],
-    5: [{ n: "@hatakeyama (masahiro)", id: "" }],
+    2: [{ n: "@matsumoto(katsumi)", id: "U078KMTU77A" }],
+    3: [{ n: "@yamashita (riki)", id: "U08MQ4C2CKX" }],
+    4: [{ n: "@Ando(kai)", id: "U08MRC75XBK" }],
+    5: [{ n: "@hatakeyama (masahiro)", id: "U05MZPCQG7Q" }],
   },
 };
 
 /* 申請を出したunitの「社員リーダー」。所属名（例 "SNS unitH" / "広告 unitB" / "AI"）で引く。
    { n:表示名, id:メンバーID }。id があれば確実に@cc、無ければ n をテキスト表示。空の項目はcc無し。 */
 const UNIT_LEADERS = {
-  "SNS unitA": { n: "籾山", id: "" },   "SNS unitB": { n: "大谷さえ", id: "" }, "SNS unitC": { n: "新井あかね", id: "" }, "SNS unitD": { n: "阪上", id: "" },
-  "SNS unitE": { n: "わたなべじゅら", id: "" }, "SNS unitF": { n: "田中るい", id: "" }, "SNS unitG": { n: "けんこば", id: "" }, "SNS unitH": { n: "荒川", id: "" },
-  "広告 unitA": { n: "松本かつみ", id: "" }, "広告 unitB": { n: "山下りき", id: "" }, "広告 unitC": { n: "安藤かい", id: "" }, "広告 unitD": { n: "はたけやま", id: "" },
+  "SNS unitA": { n: "籾山", id: "" },   "SNS unitB": { n: "大谷さえ", id: "U07V1LA5UH4" }, "SNS unitC": { n: "新井あかね", id: "U08EWPFNYH4" }, "SNS unitD": { n: "阪上", id: "U063M46BSS1" },
+  "SNS unitE": { n: "わたなべじゅら", id: "U06SHV6LRJ5" }, "SNS unitF": { n: "田中るい", id: "U06TPRP7YUV" }, "SNS unitG": { n: "けんこば", id: "U0AA49QGZ9S" }, "SNS unitH": { n: "荒川", id: "U073JKE5916" },
+  "広告 unitA": { n: "松本かつみ", id: "U078KMTU77A" }, "広告 unitB": { n: "山下りき", id: "U08MQ4C2CKX" }, "広告 unitC": { n: "安藤かい", id: "U08MRC75XBK" }, "広告 unitD": { n: "はたけやま", id: "U05MZPCQG7Q" },
   "広告AIO": { n: "しばたあきら", id: "U06KPRRLUQL" }, "AI": { n: "たんのゆうじろう", id: "U05UXE4NZDJ" },
   "LINE": { n: "しばたあきら", id: "U06KPRRLUQL" }, "フロント": { n: "本間ゆうか", id: "U07AGNJP7FU" },
 };
