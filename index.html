@@ -530,7 +530,7 @@ const CONFIG = {
   SUPABASE_URL: "https://poojxmakkswpmmahicfh.supabase.co",   // ← Supabaseの Project URL
   SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBvb2p4bWFra3N3cG1tYWhpY2ZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4NDY5MTIsImV4cCI6MjEwMDQyMjkxMn0.etCj5H1YOToqPz_34oWWpV1gE4E2S9zbLx09L0ZBQo4",  // ← Supabaseの anon public key
   // ↓ Slack通知を使う場合だけ。Slackで作った Incoming Webhook のURLを貼る（空のままなら通知しません）
-  SLACK_WEBHOOK_URL: "",                              // 例: "https://hooks.slack.com/services/T000/B000/xxxx"
+  SLACK_WEBHOOK_URL: "",                              // ※GitHubが秘密検知でブロックするため、実URLは Supabase(app_config) に保存して実行時に読み込みます
   // ↓ 確認者モードに入るためのパスワード（空なら誰でも確認者モードに入れます）
   REVIEWER_PASSWORD: "shosan0724",
 };
@@ -672,6 +672,7 @@ function scheduledDates(div, unit, y, mo) {
 
 let sb = null;
 let absences = []; // 欠席記録 [{person_name, unit_name, absent_date}]
+let slackWebhook = ""; // Supabase(app_config)から実行時に読み込むSlack Webhook URL
 let requests = [];
 let filter = "pending"; // pending | approved | all
 let reviewer = localStorage.getItem("irai_reviewer") === "1"; // 確認者モード
@@ -813,6 +814,11 @@ async function loadAll() {
     const { data: ab } = await sb.from("absences").select("*");
     absences = ab || [];
   } catch (e) { absences = []; }
+  // Slack Webhook URL（app_configテーブルから。未作成でも他機能は動く）
+  try {
+    const { data: cfg } = await sb.from("app_config").select("value").eq("key", "slack_webhook_url").maybeSingle();
+    slackWebhook = (cfg && cfg.value) || "";
+  } catch (e) { slackWebhook = ""; }
   render();
   renderManage();
 }
@@ -981,7 +987,7 @@ function sideOf(div) {
 }
 
 async function notifySlack({ div, unit, name, date, reason }) {
-  const url = CONFIG.SLACK_WEBHOOK_URL;
+  const url = slackWebhook || CONFIG.SLACK_WEBHOOK_URL;
   if (!url || !url.startsWith("https://hooks.slack.com/")) return; // 未設定なら何もしない
 
   const d = fmtDate(date);
