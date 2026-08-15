@@ -534,6 +534,14 @@ const CONFIG = {
   // ↓ 確認者モードに入るためのパスワード（空なら誰でも確認者モードに入れます）
   REVIEWER_PASSWORD: "shosan0724",
 };
+
+/* 承認担当：依頼の「希望日の曜日 × SNS/広告」で、Slackで@メンションする社員を決める。
+   1=月 … 5=金。値は Slackの「メンバーID」（例 "U01ABCD2E"）。空なら該当メンションなし。
+   ※ メンバーIDは Slackで対象者のプロフィール → その他 → 「メンバーIDをコピー」で取得できます。 */
+const APPROVERS = {
+  "SNS":  { 1: "", 2: "", 3: "", 4: "", 5: "" },
+  "広告": { 1: "", 2: "", 3: "", 4: "", 5: "" },
+};
 /* ==================================================================
    ▲▲▲ 設定ここまで ▲▲▲
    ================================================================== */
@@ -951,18 +959,32 @@ async function submitRequest(e) {
 }
 
 /* ---------- Slack通知 ---------- */
+// 依頼のdivから「SNS/広告」どちらの担当かを返す（広告AIOは広告側）
+function sideOf(div) {
+  if (div === "SNS") return "SNS";
+  if (div === "広告" || div === "広告AIO") return "広告";
+  return null;
+}
+
 async function notifySlack({ div, unit, name, date, reason }) {
   const url = CONFIG.SLACK_WEBHOOK_URL;
   if (!url || !url.startsWith("https://hooks.slack.com/")) return; // 未設定なら何もしない
 
   const d = fmtDate(date);
+  // 希望日の曜日 × SNS/広告 で承認担当を特定して@メンション
+  const side = sideOf(div);
+  const wd = new Date(date + "T00:00:00").getDay(); // 1=月…5=金
+  const approverId = side && APPROVERS[side] ? (APPROVERS[side][wd] || "") : "";
+  const mention = approverId ? `<@${approverId}> ` : "";
+
   const text =
     "🗓️ *新しい出社依頼が届きました*\n" +
+    mention + "承認をお願いします🙏\n" +
     "• 所属: " + composeUnitName(div, unit) + "\n" +
     "• 名前: " + name + "\n" +
     "• 希望日: " + d.label + d.dow + "\n" +
     (reason ? "• 理由: " + reason + "\n" : "") +
-    "確認 → 承認をお願いします🙏\n" + location.href;
+    "確認 → " + location.href;
 
   try {
     // Slack Webhookはブラウザからだと CORS で応答を読めないため no-cors + form形式で送る（送信自体は成功する）
