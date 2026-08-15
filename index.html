@@ -556,6 +556,15 @@ const APPROVERS = {
     5: [{ n: "@hatakeyama (masahiro)", id: "" }],
   },
 };
+
+/* 申請を出したunitの「社員リーダー」。所属名（例 "SNS unitH" / "広告 unitB" / "AI"）で引く。
+   { n:表示名, id:メンバーID }。id があれば確実に@cc、無ければ n をテキスト表示。空の項目はcc無し。 */
+const UNIT_LEADERS = {
+  "SNS unitA": { n: "", id: "" }, "SNS unitB": { n: "", id: "" }, "SNS unitC": { n: "", id: "" }, "SNS unitD": { n: "", id: "" },
+  "SNS unitE": { n: "", id: "" }, "SNS unitF": { n: "", id: "" }, "SNS unitG": { n: "", id: "" }, "SNS unitH": { n: "", id: "" },
+  "広告 unitA": { n: "", id: "" }, "広告 unitB": { n: "", id: "" }, "広告 unitC": { n: "", id: "" }, "広告 unitD": { n: "", id: "" },
+  "広告AIO": { n: "", id: "" }, "AI": { n: "", id: "" }, "LINE": { n: "", id: "" }, "フロント": { n: "", id: "" },
+};
 /* ==================================================================
    ▲▲▲ 設定ここまで ▲▲▲
    ================================================================== */
@@ -1002,10 +1011,20 @@ async function notifySlack({ div, unit, name, date, reason }) {
     useLinkNames = entry.some(a => !a.id); // IDが無い担当は名前テキスト（link_namesで自動リンク試行）
   }
 
+  // 申請を出したunitの社員リーダーをccメンション
+  const unitName = composeUnitName(div, unit);
+  const leader = UNIT_LEADERS[unitName];
+  let cc = "";
+  if (leader && (leader.id || leader.n)) {
+    cc = leader.id ? `<@${leader.id}>` : leader.n;
+    if (!leader.id) useLinkNames = true;
+  }
+
   const text =
     "🗓️ *新しい出社依頼が届きました*\n" +
     mention + "承認をお願いします🙏\n" +
-    "• 所属: " + composeUnitName(div, unit) + "\n" +
+    (cc ? "cc: " + cc + "（" + unitName + " リーダー）\n" : "") +
+    "• 所属: " + unitName + "\n" +
     "• 名前: " + name + "\n" +
     "• 希望日: " + d.label + d.dow + "\n" +
     (reason ? "• 理由: " + reason + "\n" : "") +
