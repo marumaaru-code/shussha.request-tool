@@ -535,12 +535,26 @@ const CONFIG = {
   REVIEWER_PASSWORD: "shosan0724",
 };
 
-/* 承認担当：依頼の「希望日の曜日 × SNS/広告」で、Slackで@メンションする社員を決める。
-   1=月 … 5=金。値は Slackの「メンバーID」（例 "U01ABCD2E"）。空なら該当メンションなし。
-   ※ メンバーIDは Slackで対象者のプロフィール → その他 → 「メンバーIDをコピー」で取得できます。 */
+/* 承認担当：依頼の「希望日の曜日 × SNS/広告」で、Slackで通知する社員を決める。
+   1=月 … 5=金。各担当は { n:表示名, id:SlackメンバーID }。
+   id を入れると確実に@メンション（プッシュ通知）されます。空なら n をテキスト表示。
+   ※ メンバーID＝Slackで対象者のプロフィール → その他 → 「メンバーIDをコピー」（U で始まる）。
+   広告の月曜は "SNS" 指定＝SNSの月曜担当にメンション（運用ルールどおり）。 */
 const APPROVERS = {
-  "SNS":  { 1: "", 2: "", 3: "", 4: "", 5: "" },
-  "広告": { 1: "", 2: "", 3: "", 4: "", 5: "" },
+  "SNS": {
+    1: [{ n: "@otani（sae）", id: "" }, { n: "@nanami(homma)", id: "" }, { n: "@Sakaue (Kouhei)", id: "" }],
+    2: [{ n: "@arai（akane）", id: "" }],
+    3: [{ n: "@Watanabe (Jura)", id: "" }],
+    4: [{ n: "@tanaka(rui)", id: "" }, { n: "@Naoki.Kobayashi（けんこば）", id: "" }],
+    5: [{ n: "@arakawa(haruka)taki", id: "" }],
+  },
+  "広告": {
+    1: "SNS", // 月曜出社希望はSNSの月曜担当にメンション
+    2: [{ n: "@matsumoto(katsumi)", id: "" }],
+    3: [{ n: "@yamashita (riki)", id: "" }],
+    4: [{ n: "@Ando(kai)", id: "" }],
+    5: [{ n: "@hatakeyama (masahiro)", id: "" }],
+  },
 };
 /* ==================================================================
    ▲▲▲ 設定ここまで ▲▲▲
@@ -971,11 +985,16 @@ async function notifySlack({ div, unit, name, date, reason }) {
   if (!url || !url.startsWith("https://hooks.slack.com/")) return; // 未設定なら何もしない
 
   const d = fmtDate(date);
-  // 希望日の曜日 × SNS/広告 で承認担当を特定して@メンション
+  // 希望日の曜日 × SNS/広告 で承認担当を特定
   const side = sideOf(div);
   const wd = new Date(date + "T00:00:00").getDay(); // 1=月…5=金
-  const approverId = side && APPROVERS[side] ? (APPROVERS[side][wd] || "") : "";
-  const mention = approverId ? `<@${approverId}> ` : "";
+  let entry = side && APPROVERS[side] ? APPROVERS[side][wd] : null;
+  if (entry === "SNS") entry = APPROVERS["SNS"] ? APPROVERS["SNS"][wd] : null; // 広告月曜→SNS月曜に委譲
+  let mention = "", useLinkNames = false;
+  if (Array.isArray(entry) && entry.length) {
+    mention = entry.map(a => a.id ? `<@${a.id}>` : a.n).join(" ") + " ";
+    useLinkNames = entry.some(a => !a.id); // IDが無い担当は名前テキスト（link_namesで自動リンク試行）
+  }
 
   const text =
     "🗓️ *新しい出社依頼が届きました*\n" +
@@ -986,13 +1005,14 @@ async function notifySlack({ div, unit, name, date, reason }) {
     (reason ? "• 理由: " + reason + "\n" : "") +
     "確認 → " + location.href;
 
+  const payload = useLinkNames ? { text, link_names: 1 } : { text };
   try {
     // Slack Webhookはブラウザからだと CORS で応答を読めないため no-cors + form形式で送る（送信自体は成功する）
     await fetch(url, {
       method: "POST",
       mode: "no-cors",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: "payload=" + encodeURIComponent(JSON.stringify({ text })),
+      body: "payload=" + encodeURIComponent(JSON.stringify(payload)),
     });
   } catch (e) {
     console.error("Slack通知に失敗しました:", e); // 通知失敗でも提出自体は成功扱い
