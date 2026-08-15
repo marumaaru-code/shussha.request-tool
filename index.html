@@ -1039,7 +1039,7 @@ async function notifySlack({ div, unit, name, date, reason }) {
   const text =
     "🗓️ *新しい出社依頼が届きました*\n" +
     mention + "承認をお願いします🙏\n" +
-    (cc ? "cc: " + cc + "（" + unitName + " リーダー）\n" : "") +
+    (cc ? "cc: " + cc + "\n" : "") +
     "• 所属: " + unitName + "\n" +
     "• 名前: " + name + "\n" +
     "• 希望日: " + d.label + d.dow + "\n" +
