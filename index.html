@@ -968,17 +968,17 @@ async function submitRequest(e) {
 
   if (!sb) { toast("設定を入れると保存できます"); btn.disabled = false; return; }
 
-  const { error } = await sb.from(TABLE).insert({
+  const { data: inserted, error } = await sb.from(TABLE).insert({
     unit_name: composeUnitName(div, unit),
     person_name: name,
     requested_date: date,
     reason: reason || null,
     client_id: clientId,
-  });
+  }).select().single();
   if (error) { toast("提出に失敗しました"); console.error(error); btn.disabled = false; return; }
 
   // 確認者（社員）へSlack通知（設定されている場合のみ・提出者の端末から1回だけ送る）
-  notifySlack({ div, unit, name, date, reason });
+  notifySlack({ div, unit, name, date, reason, requestId: inserted && inserted.id });
 
   // 名前と所属は次回のために残し、日付・理由だけリセット
   document.getElementById("fDate").value = "";
@@ -1031,8 +1031,25 @@ async function postSlack(text, useLinkNames) {
   } catch (e) { console.error("Slack通知に失敗しました:", e); }
 }
 
+// Edge Function経由でchat.postMessage（メッセージID(ts)が取れる／スレッド返信も可能）
+async function slackPostViaFunction(text, threadTs) {
+  try {
+    const res = await fetch(CONFIG.SUPABASE_URL + "/functions/v1/slack", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + CONFIG.SUPABASE_ANON_KEY,
+        "apikey": CONFIG.SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify(threadTs ? { text, thread_ts: threadTs } : { text }),
+    });
+    const j = await res.json();
+    return j && j.ok ? j.ts : null;
+  } catch (e) { return null; } // 未デプロイ等はnull（Webhookにフォールバック）
+}
+
 // 新規依頼の通知
-async function notifySlack({ div, unit, name, date, reason }) {
+async function notifySlack({ div, unit, name, date, reason, requestId }) {
   const unitName = composeUnitName(div, unit);
   const d = fmtDate(date);
   const { mention, cc, useLinkNames } = slackMentions(unitName, date);
@@ -1045,7 +1062,21 @@ async function notifySlack({ div, unit, name, date, reason }) {
     "• 希望日: " + d.label + d.dow + "\n" +
     (reason ? "• 理由: " + reason + "\n" : "") +
     "確認 → " + location.href;
-  await postSlack(text, useLinkNames);
+  // まずEdge Function（chat.postMessage）でメッセージID(ts)を取得して保存。失敗時はWebhookへフォールバック
+  const ts = await slackPostViaFunction(text);
+  if (ts) {
+    if (requestId && sb) { try { await sb.from(TABLE).update({ slack_ts: ts }).eq("id", requestId); } catch (e) {} }
+  } else {
+    await postSlack(text, useLinkNames);
+  }
+}
+
+// 承認時：元の通知にスレッド返信で「承認されました」（slack_tsがある依頼のみ）
+async function notifySlackApproved(r) {
+  if (!r || !r.slack_ts) return;
+  const d = fmtDate(r.requested_date);
+  const text = "✅ *承認されました*\n・" + (r.unit_name || "") + "　" + (r.person_name || "") + "／" + d.label + d.dow;
+  await slackPostViaFunction(text, r.slack_ts);
 }
 
 // 依頼が削除（取り消し）されたときの通知
@@ -1257,6 +1288,8 @@ async function setStatus(id, target) {
   const next = (cur && statusOf(cur) === target) ? "pending" : target; // もう一度押すと解除
   const { error } = await sb.from(TABLE).update({ status: next }).eq("id", id);
   if (error) { toast("更新に失敗しました"); console.error(error); return; }
+  // 承認したら、元の通知にスレッド返信で「承認されました」を送る
+  if (next === "approved" && cur) notifySlackApproved(cur);
   toast(next === "approved" ? "承認しました ✓" : next === "rejected" ? "却下しました" : "承認待ちに戻しました");
   await loadAll();
 }
