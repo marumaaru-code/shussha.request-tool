@@ -777,7 +777,12 @@ function submittedAgo(iso) {
 
 /* ---------- ログイン画面（合言葉なし・ボタンで入る）---------- */
 const gate = document.getElementById("gate");
-document.getElementById("gateBtn").addEventListener("click", () => enter());
+document.getElementById("gateBtn").addEventListener("click", () => {
+  // 「はじめる」は必ず一般モードで入場（管理者権限が端末に残っていても解除）
+  reviewer = false;
+  localStorage.setItem("irai_reviewer", "0");
+  enter();
+});
 // 管理者用ログイン：パスワード確認 → 確認者モードONで入場
 document.getElementById("gateAdminBtn").addEventListener("click", () => {
   const pw = CONFIG.REVIEWER_PASSWORD;
