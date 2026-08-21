@@ -433,7 +433,7 @@
   <button type="button" class="tab on" data-tab="request" id="tabRequest">依頼</button>
   <button type="button" class="tab" data-tab="history" id="tabHistory">依頼管理</button>
   <button type="button" class="tab" data-tab="attend" id="tabAttend">出社管理</button>
-  <button type="button" class="tab" data-tab="addintern" id="tabAddIntern" style="display:none">インターン追加</button>
+  <button type="button" class="tab" data-tab="addintern" id="tabAddIntern">インターン追加</button>
 </nav>
 
 <div class="wrap">
@@ -1368,10 +1368,9 @@ function wireReviewer() {
 function applyReviewerUI() {
   document.getElementById("reviewerToggle").classList.toggle("on", reviewer);
   document.body.classList.toggle("reviewer-on", reviewer); // 確認者モード中は全体をうっすら色付け
-  // インターン追加タブは管理者（確認者モード）のみ表示
+  // インターン追加タブは全員に表示
   const at = document.getElementById("tabAddIntern");
-  if (at) at.style.display = reviewer ? "" : "none";
-  if (!reviewer && tab === "addintern") switchTab("request");
+  if (at) at.style.display = "";
   render();
   renderManage();
 }
