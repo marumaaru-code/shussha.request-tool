@@ -1142,7 +1142,9 @@ async function notifySlackDelete(r) {
     "• 名前: " + (r.person_name || "") + "\n" +
     "• 希望日: " + d.label + d.dow + "\n" +
     "（この依頼は取り消されたため、承認は不要です）";
-  await postSlack(text, false);
+  // 本番チャンネルへ。元通知がある場合はそのスレッド返信として出す
+  const ts = await slackPostViaFunction(text, r.slack_ts || undefined);
+  if (!ts) await postSlack(text, false); // Function失敗時のみWebhookへフォールバック
 }
 
 /* ---------- フィルタ ---------- */
