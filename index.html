@@ -54,6 +54,11 @@
     transition: opacity .2s;
   }
   .gate-card button:active { opacity: .7; }
+  .gate-card button.gate-secondary {
+    margin-top: 10px; background: transparent; color: var(--ink);
+    border: 1px solid var(--chip-border); font-size: 15px; font-weight: 700;
+  }
+  .gate-card button.gate-secondary:active { opacity: .6; }
 
   /* ---------- Header ---------- */
   header {
@@ -400,7 +405,8 @@
     </svg></div>
     <h1>出社管理ツール</h1>
     <p>いつもと違う平日に出社したいときに提出してください。</p>
-    <button id="gateBtn">はじめる</button>
+    <button id="gateBtn">ログイン（はじめる）</button>
+    <button id="gateAdminBtn" class="gate-secondary">管理者用ログイン</button>
   </div>
 </div>
 
@@ -427,6 +433,7 @@
   <button type="button" class="tab on" data-tab="request" id="tabRequest">依頼</button>
   <button type="button" class="tab" data-tab="history" id="tabHistory">依頼管理</button>
   <button type="button" class="tab" data-tab="attend" id="tabAttend">出社管理</button>
+  <button type="button" class="tab" data-tab="addintern" id="tabAddIntern" style="display:none">インターン追加</button>
 </nav>
 
 <div class="wrap">
@@ -455,7 +462,7 @@
     <div class="field">
       <label for="fName">名前<span class="req">必須</span></label>
       <div class="ac-wrap">
-        <input id="fName" name="name" placeholder="名前を入力（候補から選べます）" maxlength="30" autocomplete="off" required />
+        <input id="fName" name="name" placeholder="名前を入力" maxlength="30" autocomplete="off" required />
         <div class="ac-list" id="nameAc"></div>
       </div>
     </div>
@@ -517,6 +524,30 @@
     </div>
     <div id="manageList"></div>
   </div><!-- /view-attend -->
+
+  <!-- ============ インターン追加タブ（管理者のみ） ============ -->
+  <div id="view-addintern" style="display:none">
+    <p class="manage-note">新しいインターンを名簿に追加します。追加すると、名前候補や出社管理に反映されます。</p>
+    <form class="form" id="internForm" autocomplete="off">
+      <div class="field">
+        <label for="iName">名前<span class="req">必須</span></label>
+        <input id="iName" placeholder="例）山田 花子（姓と名の間にスペース）" maxlength="30" required />
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label for="iDiv">所属<span class="req">必須</span></label>
+          <select id="iDiv" required><option value="" disabled selected>選択してください</option></select>
+        </div>
+        <div class="field" id="iUnitField" style="display:none">
+          <label for="iUnit">unit<span class="req">必須</span></label>
+          <select id="iUnit"><option value="" disabled selected>選択</option></select>
+        </div>
+      </div>
+      <button type="submit" class="submit-btn" id="internSubmit" disabled>この内容で追加する</button>
+    </form>
+    <div class="list-head"><h2>登録済み（追加分）</h2><span class="count" id="internCount"></span></div>
+    <div id="internList"></div>
+  </div><!-- /view-addintern -->
 </div>
 
 <div class="toast" id="toast"></div>
@@ -532,7 +563,7 @@ const CONFIG = {
   // ↓ Slack通知を使う場合だけ。Slackで作った Incoming Webhook のURLを貼る（空のままなら通知しません）
   SLACK_WEBHOOK_URL: "",                              // ※GitHubが秘密検知でブロックするため、実URLは Supabase(app_config) に保存して実行時に読み込みます
   // ↓ 確認者モードに入るためのパスワード（空なら誰でも確認者モードに入れます）
-  REVIEWER_PASSWORD: "shosan0724",
+  REVIEWER_PASSWORD: "shosan0715",
 };
 
 /* 承認担当：依頼の「希望日の曜日 × SNS/広告」で、Slackで通知する社員を決める。
@@ -683,6 +714,10 @@ function scheduledDates(div, unit, y, mo) {
 let sb = null;
 let absences = []; // 欠席記録 [{person_name, unit_name, absent_date}]
 let slackWebhook = ""; // Supabase(app_config)から実行時に読み込むSlack Webhook URL
+let extraInterns = []; // 追加登録されたインターン（internsテーブル）
+// 実行時の名簿（ベースROSTER＋追加分）と名前候補
+function rosterAll() { return ROSTER.concat(extraInterns); }
+function namesAll() { const s = new Set(INTERN_NAMES); extraInterns.forEach(p => p.n && s.add(p.n)); return [...s]; }
 let requests = [];
 let filter = "pending"; // pending | approved | all
 let reviewer = localStorage.getItem("irai_reviewer") === "1"; // 確認者モード
@@ -742,7 +777,19 @@ function submittedAgo(iso) {
 
 /* ---------- ログイン画面（合言葉なし・ボタンで入る）---------- */
 const gate = document.getElementById("gate");
-document.getElementById("gateBtn").addEventListener("click", enter);
+document.getElementById("gateBtn").addEventListener("click", () => enter());
+// 管理者用ログイン：パスワード確認 → 確認者モードONで入場
+document.getElementById("gateAdminBtn").addEventListener("click", () => {
+  const pw = CONFIG.REVIEWER_PASSWORD;
+  if (pw) {
+    const input = prompt("管理者パスワードを入力してください");
+    if (input === null) return;            // キャンセル
+    if (input !== pw) { toast("パスワードが違います"); return; }
+  }
+  reviewer = true;
+  localStorage.setItem("irai_reviewer", "1");
+  enter();
+});
 function enter() {
   sessionStorage.setItem("irai_unlocked", "1");
   gate.classList.add("hidden");
@@ -829,6 +876,11 @@ async function loadAll() {
     const { data: cfg } = await sb.from("app_config").select("value").eq("key", "slack_webhook_url").maybeSingle();
     slackWebhook = (cfg && cfg.value) || "";
   } catch (e) { slackWebhook = ""; }
+  // 追加登録されたインターン（internsテーブル。未作成でも他機能は動く）
+  try {
+    const { data: it } = await sb.from("interns").select("*");
+    extraInterns = (it || []).map(x => ({ n: x.name, d: x.division, u: x.unit || "" }));
+  } catch (e) { extraInterns = []; }
   render();
   renderManage();
 }
@@ -910,7 +962,7 @@ function attachNameAutocomplete(inputId, listId, onChange) {
   function openMatches() {
     const q = norm(input.value);
     if (!q) { close(); return; }
-    items = INTERN_NAMES.filter(n => norm(n).includes(q)).slice(0, 8);
+    items = namesAll().filter(n => norm(n).includes(q)).slice(0, 8);
     if (!items.length) { close(); return; }
     list.innerHTML = items.map((n, idx) =>
       `<div class="ac-item${idx === active ? " active" : ""}" data-i="${idx}">${esc(n)}</div>`).join("");
@@ -1316,6 +1368,10 @@ function wireReviewer() {
 function applyReviewerUI() {
   document.getElementById("reviewerToggle").classList.toggle("on", reviewer);
   document.body.classList.toggle("reviewer-on", reviewer); // 確認者モード中は全体をうっすら色付け
+  // インターン追加タブは管理者（確認者モード）のみ表示
+  const at = document.getElementById("tabAddIntern");
+  if (at) at.style.display = reviewer ? "" : "none";
+  if (!reviewer && tab === "addintern") switchTab("request");
   render();
   renderManage();
 }
@@ -1339,6 +1395,72 @@ function wireTabs() {
   ms.addEventListener("input", () => { manageQuery = ms.value.trim(); renderManage(); });
   attachNameAutocomplete("mSearch", "mSearchAc", () => { manageQuery = ms.value.trim(); renderManage(); });
   document.getElementById("mMonth").addEventListener("change", e => { manageMonth = e.target.value; renderManage(); });
+
+  // インターン追加フォーム
+  const iDiv = document.getElementById("iDiv");
+  Object.keys(DIVISIONS).forEach(name => { const o = document.createElement("option"); o.value = name; o.textContent = name; iDiv.appendChild(o); });
+  iDiv.addEventListener("change", onIDivChange);
+  document.getElementById("iUnit").addEventListener("change", updateInternSubmitBtn);
+  document.getElementById("iName").addEventListener("input", updateInternSubmitBtn);
+  document.getElementById("internForm").addEventListener("submit", addIntern);
+}
+
+function onIDivChange() {
+  const div = document.getElementById("iDiv").value;
+  const units = DIVISIONS[div] || [];
+  const field = document.getElementById("iUnitField");
+  const sel = document.getElementById("iUnit");
+  if (units.length) {
+    sel.innerHTML = '<option value="" disabled selected>選択</option>' + units.map(u => `<option value="${u}">unit ${u}</option>`).join("");
+    field.style.display = "";
+  } else { sel.innerHTML = '<option value="" disabled selected>選択</option>'; sel.value = ""; field.style.display = "none"; }
+  updateInternSubmitBtn();
+}
+function updateInternSubmitBtn() {
+  const div = document.getElementById("iDiv").value;
+  const unitOk = !(DIVISIONS[div] || []).length || document.getElementById("iUnit").value;
+  const ok = div && unitOk && document.getElementById("iName").value.trim();
+  document.getElementById("internSubmit").disabled = !ok;
+}
+async function addIntern(e) {
+  e.preventDefault();
+  const name = document.getElementById("iName").value.trim();
+  const div = document.getElementById("iDiv").value;
+  const unit = document.getElementById("iUnit").value;
+  if (!name || !div || ((DIVISIONS[div] || []).length && !unit)) return;
+  if (!sb) { toast("設定を入れると保存できます"); return; }
+  const u = (DIVISIONS[div] || []).length ? unit : "";
+  // 重複チェック（同名は追加しない）
+  if (rosterAll().some(p => p.n === name)) { toast("同じ名前が既に登録されています"); return; }
+  const { error } = await sb.from("interns").insert({ name, division: div, unit: u });
+  if (error) { toast("追加に失敗しました（internsテーブル未作成かも）"); console.error(error); return; }
+  toast(`${name} を追加しました`);
+  document.getElementById("iName").value = "";
+  updateInternSubmitBtn();
+  await loadAll();
+  renderInternList();
+}
+function renderInternList() {
+  const box = document.getElementById("internList");
+  const cnt = document.getElementById("internCount");
+  if (!box) return;
+  if (cnt) cnt.textContent = extraInterns.length ? extraInterns.length + "名" : "";
+  if (!extraInterns.length) { box.innerHTML = '<div class="empty"><div class="big">👤</div>追加されたインターンはまだいません。</div>'; return; }
+  box.innerHTML = extraInterns.slice().sort((a, b) => (a.d + a.u).localeCompare(b.d + b.u, "ja")).map(p => {
+    const uname = composeUnitName(p.d, p.u);
+    return `<div class="person-row"><div class="person-top">${unitChip(uname)}<span class="name">${esc(p.n)}</span>
+      <button class="del-btn" data-delintern="${esc(p.n)}" style="margin-left:auto">🗑 削除</button></div></div>`;
+  }).join("");
+  box.querySelectorAll("[data-delintern]").forEach(b => b.addEventListener("click", () => deleteIntern(b.dataset.delintern)));
+}
+async function deleteIntern(name) {
+  if (!sb) return;
+  if (!confirm(`「${name}」を名簿から削除しますか？`)) return;
+  const { error } = await sb.from("interns").delete().eq("name", name);
+  if (error) { toast("削除に失敗しました"); console.error(error); return; }
+  toast("削除しました");
+  await loadAll();
+  renderInternList();
 }
 function switchTab(next) {
   tab = next;
@@ -1346,12 +1468,14 @@ function switchTab(next) {
   document.getElementById("view-request").style.display = next === "request" ? "" : "none";
   document.getElementById("view-history").style.display = next === "history" ? "" : "none";
   document.getElementById("view-attend").style.display = next === "attend" ? "" : "none";
+  document.getElementById("view-addintern").style.display = next === "addintern" ? "" : "none";
   if (next === "history") render();
   if (next === "attend") {
     if (!manageMonth) { const n = new Date(); manageMonth = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`; }
     document.getElementById("mMonth").value = manageMonth;
     renderManage();
   }
+  if (next === "addintern") renderInternList();
 }
 
 /* ---------- 出社管理（月間の各インターンの出社回数・読み取り専用） ---------- */
@@ -1371,7 +1495,7 @@ function renderManageMonthly() {
   const q = nrm(manageQuery);
 
   // 対象者：名簿からメイン曜日を持つ人（検索で絞り込み）
-  const people = ROSTER.filter(p => {
+  const people = rosterAll().filter(p => {
     const uname = composeUnitName(p.d, p.u);
     return unitWeekdays(p.d, p.u).length &&
       (!q || nrm(p.n).includes(q) || nrm(uname).includes(q));
@@ -1473,7 +1597,7 @@ async function addVisit(name, unit, date) {
   const wd0 = new Date(date + "T00:00:00").getDay();
   if (wd0 === 0 || wd0 === 6) { toast("土日は追加できません"); return; }
   // 既に出社記録がある日は追加しない
-  const p = ROSTER.find(x => x.n === name);
+  const p = rosterAll().find(x => x.n === name);
   if (p && scheduledDates(p.d, p.u, +date.slice(0, 4), +date.slice(5, 7)).includes(date)) {
     toast("その日は元々メイン出社日です"); return;
   }
@@ -1498,7 +1622,7 @@ async function deleteVisit(id) {
 
 async function toggleAbsence(name, date) {
   if (!sb) { toast("設定を入れると保存できます"); return; }
-  const person = ROSTER.find(p => p.n === name);
+  const person = rosterAll().find(p => p.n === name);
   const uname = person ? composeUnitName(person.d, person.u) : "";
   try {
     if (isAbsent(name, date)) {

@@ -60,3 +60,25 @@ create policy "anyone write abs"  on absences for insert with check (true);
 drop policy if exists "anyone delete abs" on absences;
 create policy "anyone delete abs" on absences for delete using (true);
 alter publication supabase_realtime add table absences;
+
+
+-- =====================================================================
+--  インターン名簿の追加分（「インターン追加」タブで登録）
+--  ※この機能を使う場合だけ実行すればOKです。
+-- =====================================================================
+create table if not exists interns (
+  id        uuid primary key default gen_random_uuid(),
+  name      text not null,        -- 氏名（例: "山田 花子"）
+  division  text not null,        -- 所属（例: "SNS" / "広告" / "AI" 等）
+  unit      text,                 -- unit（A〜H等。無い部署は空）
+  created_at timestamptz default now(),
+  unique (name)
+);
+alter table interns enable row level security;
+drop policy if exists "anyone read interns"   on interns;
+create policy "anyone read interns"   on interns for select using (true);
+drop policy if exists "anyone write interns"  on interns;
+create policy "anyone write interns"  on interns for insert with check (true);
+drop policy if exists "anyone delete interns" on interns;
+create policy "anyone delete interns" on interns for delete using (true);
+alter publication supabase_realtime add table interns;
