@@ -1086,7 +1086,7 @@ async function postSlack(text, useLinkNames) {
 // Edge Function経由でchat.postMessage（メッセージID(ts)が取れる／スレッド返信も可能）
 async function slackPostViaFunction(text, threadTs) {
   try {
-    const res = await fetch(CONFIG.SUPABASE_URL + "/functions/v1/slack", {
+    const res = await fetch(CONFIG.SUPABASE_URL + "/functions/v1/dynamic-action", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
