@@ -550,8 +550,13 @@
     <div id="internList"></div>
 
     <div class="list-head"><h2>在籍メンバー（表示 / 除外）</h2></div>
-    <p class="manage-note">退職者などを一覧・候補・出社管理から非表示にできます（削除ではないのでいつでも戻せます）。</p>
-    <div class="field">
+    <p class="manage-note">退職者などを一覧・候補・出社管理から非表示にできます。<b>削除ではなく“除外”なので、押し間違えても下の「除外中」からいつでも戻せます。</b></p>
+
+    <div class="sub-head" style="font-size:13px;font-weight:700;color:var(--secondary);margin:10px 0 6px">除外中（ここから戻せます）<span class="count" id="excludedCount"></span></div>
+    <div id="excludedList"></div>
+
+    <div class="field" style="margin-top:14px">
+      <label for="rosterSearch">除外する人を探す</label>
       <input id="rosterSearch" placeholder="名前・unitで絞り込み" maxlength="30" autocomplete="off" />
     </div>
     <div id="rosterManageList"></div>
@@ -1495,25 +1500,36 @@ async function deleteIntern(name) {
 
 // 在籍メンバーの除外（非表示）管理 — 削除ではなく戻せる
 function renderRosterManage() {
+  const nrm = s => (s || "").toLowerCase().replace(/[\s_]/g, "").replace(/unit/g, "");
+  // unit情報を引くための索引（ベース名簿＋追加分）
+  const info = name => rosterAllRaw().find(p => p.n === name);
+  const uOf = name => { const p = info(name); return p ? composeUnitName(p.d, p.u) : ""; };
+
+  // --- 除外中（履歴。ここからいつでも戻せる） ---
+  const exBox = document.getElementById("excludedList");
+  const exCnt = document.getElementById("excludedCount");
+  const exNames = [...excludedNames].sort((a, b) => (uOf(a)).localeCompare(uOf(b), "ja") || a.localeCompare(b, "ja"));
+  if (exCnt) exCnt.textContent = exNames.length ? exNames.length + "名" : "";
+  if (exBox) {
+    exBox.innerHTML = exNames.length
+      ? exNames.map(n => `<div class="person-row" style="opacity:.7"><div class="person-top">${unitChip(uOf(n))}<span class="name">${esc(n)}</span>
+          <button class="del-btn" data-togglex="${esc(n)}" style="margin-left:auto">↩ 戻す</button></div></div>`).join("")
+      : '<div class="empty" style="padding:14px 0"><span style="color:var(--secondary)">除外中の人はいません。</span></div>';
+    exBox.querySelectorAll("[data-togglex]").forEach(b => b.addEventListener("click", () => toggleExclude(b.dataset.togglex)));
+  }
+
+  // --- 除外する人を探す（まだ除外していない在籍メンバーのみ） ---
   const box = document.getElementById("rosterManageList");
   if (!box) return;
-  const nrm = s => (s || "").toLowerCase().replace(/[\s_]/g, "").replace(/unit/g, "");
   const q = nrm(document.getElementById("rosterSearch") ? document.getElementById("rosterSearch").value : "");
-  let list = ROSTER.slice(); // ベース名簿（在籍メンバー）
+  let list = ROSTER.filter(p => !excludedNames.has(p.n)); // 除外済みは上の履歴に表示
   if (q) list = list.filter(p => nrm(p.n).includes(q) || nrm(composeUnitName(p.d, p.u)).includes(q));
-  // 除外中を上に、その中はunit順→名前順
-  list.sort((a, b) => {
-    const ax = excludedNames.has(a.n) ? 0 : 1, bx = excludedNames.has(b.n) ? 0 : 1;
-    if (ax !== bx) return ax - bx;
-    return (a.d + a.u).localeCompare(b.d + b.u, "ja") || a.n.localeCompare(b.n, "ja");
-  });
-  if (!list.length) { box.innerHTML = '<div class="empty">該当する在籍メンバーがいません。</div>'; return; }
+  list.sort((a, b) => (a.d + a.u).localeCompare(b.d + b.u, "ja") || a.n.localeCompare(b.n, "ja"));
+  if (!list.length) { box.innerHTML = '<div class="empty" style="padding:14px 0"><span style="color:var(--secondary)">該当する在籍メンバーがいません。</span></div>'; return; }
   box.innerHTML = list.slice(0, 300).map(p => {
     const uname = composeUnitName(p.d, p.u);
-    const ex = excludedNames.has(p.n);
-    return `<div class="person-row" style="${ex ? "opacity:.55" : ""}"><div class="person-top">${unitChip(uname)}<span class="name">${esc(p.n)}</span>
-      ${ex ? '<span style="font-size:11px;color:var(--secondary);margin-left:6px">除外中</span>' : ""}
-      <button class="del-btn" data-togglex="${esc(p.n)}" style="margin-left:auto">${ex ? "↩ 戻す" : "🚫 除外"}</button></div></div>`;
+    return `<div class="person-row"><div class="person-top">${unitChip(uname)}<span class="name">${esc(p.n)}</span>
+      <button class="del-btn" data-togglex="${esc(p.n)}" style="margin-left:auto">🚫 除外</button></div></div>`;
   }).join("");
   box.querySelectorAll("[data-togglex]").forEach(b => b.addEventListener("click", () => toggleExclude(b.dataset.togglex)));
 }
