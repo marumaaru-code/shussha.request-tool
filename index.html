@@ -787,12 +787,7 @@ document.getElementById("gateBtn").addEventListener("click", () => {
 });
 // 管理者用ログイン：パスワード確認 → 確認者モードONで入場
 document.getElementById("gateAdminBtn").addEventListener("click", () => {
-  const pw = CONFIG.REVIEWER_PASSWORD;
-  if (pw) {
-    const input = prompt("管理者パスワードを入力してください");
-    if (input === null) return;            // キャンセル
-    if (input !== pw) { toast("パスワードが違います"); return; }
-  }
+  // パスワードなしで確認者モードへ入場
   reviewer = true;
   localStorage.setItem("irai_reviewer", "1");
   enter();
@@ -1358,18 +1353,8 @@ async function setStatus(id, target) {
 /* ---------- 確認者モード ---------- */
 function wireReviewer() {
   document.getElementById("reviewerToggle").addEventListener("click", () => {
-    if (!reviewer) {
-      // ONにするとき：パスワードが設定されていれば確認
-      const pw = CONFIG.REVIEWER_PASSWORD;
-      if (pw) {
-        const input = prompt("確認者パスワードを入力してください");
-        if (input === null) return;                               // キャンセル
-        if (input !== pw) { toast("パスワードが違います"); return; }
-      }
-      reviewer = true;
-    } else {
-      reviewer = false;
-    }
+    // パスワードなしで切り替え
+    reviewer = !reviewer;
     localStorage.setItem("irai_reviewer", reviewer ? "1" : "0");
     applyReviewerUI();
   });
