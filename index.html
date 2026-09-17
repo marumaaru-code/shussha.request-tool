@@ -548,6 +548,13 @@
     </form>
     <div class="list-head"><h2>登録済み（追加分）</h2><span class="count" id="internCount"></span></div>
     <div id="internList"></div>
+
+    <div class="list-head"><h2>在籍メンバー（表示 / 除外）</h2></div>
+    <p class="manage-note">退職者などを一覧・候補・出社管理から非表示にできます（削除ではないのでいつでも戻せます）。</p>
+    <div class="field">
+      <input id="rosterSearch" placeholder="名前・unitで絞り込み" maxlength="30" autocomplete="off" />
+    </div>
+    <div id="rosterManageList"></div>
   </div><!-- /view-addintern -->
 </div>
 
@@ -716,9 +723,16 @@ let sb = null;
 let absences = []; // 欠席記録 [{person_name, unit_name, absent_date}]
 let slackWebhook = ""; // Supabase(app_config)から実行時に読み込むSlack Webhook URL
 let extraInterns = []; // 追加登録されたインターン（internsテーブル）
+let excludedNames = new Set(); // 名簿から除外（非表示）にした在籍メンバーの名前（app_config）
 // 実行時の名簿（ベースROSTER＋追加分）と名前候補
-function rosterAll() { return ROSTER.concat(extraInterns); }
-function namesAll() { const s = new Set(INTERN_NAMES); extraInterns.forEach(p => p.n && s.add(p.n)); return [...s]; }
+function rosterAllRaw() { return ROSTER.concat(extraInterns); }
+function rosterAll() { return rosterAllRaw().filter(p => !excludedNames.has(p.n)); }
+function namesAll() {
+  const s = new Set(INTERN_NAMES);
+  extraInterns.forEach(p => p.n && s.add(p.n));
+  excludedNames.forEach(n => s.delete(n)); // 除外した在籍メンバーは候補から外す
+  return [...s];
+}
 // 名前照合用：空白（半角・全角）を無視してそろえる（例:「山田太郎」＝「山田 太郎」）
 function normPerson(s) { return (s || "").replace(/\s/g, ""); }
 // 入力名が名簿の候補と一致するか判定し、正式表記を返す（スペース違いは許容／不一致はnull）
@@ -891,6 +905,11 @@ async function loadAll() {
     const { data: it } = await sb.from("interns").select("*");
     extraInterns = (it || []).map(x => ({ n: x.name, d: x.division, u: x.unit || "" }));
   } catch (e) { extraInterns = []; }
+  // 除外（非表示）にした在籍メンバー（app_configにJSON配列で保存）
+  try {
+    const { data: ex } = await sb.from("app_config").select("value").eq("key", "excluded_interns").maybeSingle();
+    excludedNames = new Set(ex && ex.value ? JSON.parse(ex.value) : []);
+  } catch (e) { excludedNames = new Set(); }
   render();
   renderManage();
 }
@@ -1411,6 +1430,9 @@ function wireTabs() {
   document.getElementById("iUnit").addEventListener("change", updateInternSubmitBtn);
   document.getElementById("iName").addEventListener("input", updateInternSubmitBtn);
   document.getElementById("internForm").addEventListener("submit", addIntern);
+  // 在籍メンバーの除外管理：検索で絞り込み
+  const rsr = document.getElementById("rosterSearch");
+  if (rsr) rsr.addEventListener("input", renderRosterManage);
 }
 
 function onIDivChange() {
@@ -1470,6 +1492,51 @@ async function deleteIntern(name) {
   await loadAll();
   renderInternList();
 }
+
+// 在籍メンバーの除外（非表示）管理 — 削除ではなく戻せる
+function renderRosterManage() {
+  const box = document.getElementById("rosterManageList");
+  if (!box) return;
+  const nrm = s => (s || "").toLowerCase().replace(/[\s_]/g, "").replace(/unit/g, "");
+  const q = nrm(document.getElementById("rosterSearch") ? document.getElementById("rosterSearch").value : "");
+  let list = ROSTER.slice(); // ベース名簿（在籍メンバー）
+  if (q) list = list.filter(p => nrm(p.n).includes(q) || nrm(composeUnitName(p.d, p.u)).includes(q));
+  // 除外中を上に、その中はunit順→名前順
+  list.sort((a, b) => {
+    const ax = excludedNames.has(a.n) ? 0 : 1, bx = excludedNames.has(b.n) ? 0 : 1;
+    if (ax !== bx) return ax - bx;
+    return (a.d + a.u).localeCompare(b.d + b.u, "ja") || a.n.localeCompare(b.n, "ja");
+  });
+  if (!list.length) { box.innerHTML = '<div class="empty">該当する在籍メンバーがいません。</div>'; return; }
+  box.innerHTML = list.slice(0, 300).map(p => {
+    const uname = composeUnitName(p.d, p.u);
+    const ex = excludedNames.has(p.n);
+    return `<div class="person-row" style="${ex ? "opacity:.55" : ""}"><div class="person-top">${unitChip(uname)}<span class="name">${esc(p.n)}</span>
+      ${ex ? '<span style="font-size:11px;color:var(--secondary);margin-left:6px">除外中</span>' : ""}
+      <button class="del-btn" data-togglex="${esc(p.n)}" style="margin-left:auto">${ex ? "↩ 戻す" : "🚫 除外"}</button></div></div>`;
+  }).join("");
+  box.querySelectorAll("[data-togglex]").forEach(b => b.addEventListener("click", () => toggleExclude(b.dataset.togglex)));
+}
+async function saveExcluded() {
+  if (!sb) return false;
+  try {
+    const { error } = await sb.from("app_config")
+      .upsert({ key: "excluded_interns", value: JSON.stringify([...excludedNames]) }, { onConflict: "key" });
+    if (error) throw error;
+    return true;
+  } catch (e) { toast("保存に失敗しました"); console.error(e); return false; }
+}
+async function toggleExclude(name) {
+  const willExclude = !excludedNames.has(name);
+  if (willExclude) excludedNames.add(name); else excludedNames.delete(name);
+  const ok = await saveExcluded();
+  if (!ok) { // 失敗したら元に戻す
+    if (willExclude) excludedNames.delete(name); else excludedNames.add(name);
+    return;
+  }
+  toast(willExclude ? `「${name}」を除外しました` : `「${name}」を表示に戻しました`);
+  render(); renderManage(); renderRosterManage();
+}
 function switchTab(next) {
   tab = next;
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("on", t.dataset.tab === next));
@@ -1483,7 +1550,7 @@ function switchTab(next) {
     document.getElementById("mMonth").value = manageMonth;
     renderManage();
   }
-  if (next === "addintern") renderInternList();
+  if (next === "addintern") { renderInternList(); renderRosterManage(); }
 }
 
 /* ---------- 出社管理（月間の各インターンの出社回数・読み取り専用） ---------- */
