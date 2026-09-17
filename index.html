@@ -462,9 +462,10 @@
     <div class="field">
       <label for="fName">名前<span class="req">必須</span></label>
       <div class="ac-wrap">
-        <input id="fName" name="name" placeholder="名前を入力" maxlength="30" autocomplete="off" required />
+        <input id="fName" name="name" placeholder="名前を入力（候補から選択）" maxlength="30" autocomplete="off" required />
         <div class="ac-list" id="nameAc"></div>
       </div>
+      <div class="hint">※ 表示された候補から選んでください。見つからない場合は「インターン追加」タブで登録してから選べます。</div>
     </div>
 
     <div class="field">
@@ -720,6 +721,13 @@ function rosterAll() { return ROSTER.concat(extraInterns); }
 function namesAll() { const s = new Set(INTERN_NAMES); extraInterns.forEach(p => p.n && s.add(p.n)); return [...s]; }
 // 名前照合用：空白（半角・全角）を無視してそろえる（例:「山田太郎」＝「山田 太郎」）
 function normPerson(s) { return (s || "").replace(/\s/g, ""); }
+// 入力名が名簿の候補と一致するか判定し、正式表記を返す（スペース違いは許容／不一致はnull）
+function matchRosterName(name) {
+  const key = normPerson(name);
+  if (!key) return null;
+  const hit = namesAll().find(n => normPerson(n) === key);
+  return hit || null;
+}
 let requests = [];
 let filter = "pending"; // pending | approved | all
 let reviewer = localStorage.getItem("irai_reviewer") === "1"; // 確認者モード
@@ -998,7 +1006,7 @@ function updateSubmitBtn() {
   const div = document.getElementById("fDiv").value;
   const unitOk = !divNeedsUnit(div) || document.getElementById("fUnit").value;
   const ok = div && unitOk &&
-             document.getElementById("fName").value.trim() &&
+             matchRosterName(document.getElementById("fName").value) &&
              document.getElementById("fDate").value;
   document.getElementById("submitBtn").disabled = !ok;
 }
@@ -1012,6 +1020,13 @@ async function submitRequest(e) {
   const reason = document.getElementById("fReason").value.trim();
   if (!div || (divNeedsUnit(div) && !unit) || !name || !date) return;
 
+  // 名前は候補（名簿）から選択したものだけ受け付ける。正式表記にそろえて保存
+  const canonName = matchRosterName(name);
+  if (!canonName) {
+    toast("名前は候補から選んでください（見つからない場合は「インターン追加」タブで登録）");
+    return;
+  }
+
   // 祝日・土日は出社日に選べない
   if (isHoliday(date)) { toast(`${HOLIDAYS[date]}（祝日）は選べません`); return; }
   const wd0 = new Date(date + "T00:00:00").getDay();
@@ -1024,7 +1039,7 @@ async function submitRequest(e) {
 
   const { data: inserted, error } = await sb.from(TABLE).insert({
     unit_name: composeUnitName(div, unit),
-    person_name: name,
+    person_name: canonName,
     requested_date: date,
     reason: reason || null,
     client_id: clientId,
@@ -1032,7 +1047,7 @@ async function submitRequest(e) {
   if (error) { toast("提出に失敗しました"); console.error(error); btn.disabled = false; return; }
 
   // 確認者（社員）へSlack通知（設定されている場合のみ・提出者の端末から1回だけ送る）
-  notifySlack({ div, unit, name, date, reason, requestId: inserted && inserted.id });
+  notifySlack({ div, unit, name: canonName, date, reason, requestId: inserted && inserted.id });
 
   // 名前と所属は次回のために残し、日付・理由だけリセット
   document.getElementById("fDate").value = "";
