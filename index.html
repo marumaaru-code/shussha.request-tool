@@ -718,6 +718,8 @@ let extraInterns = []; // 追加登録されたインターン（internsテー�
 // 実行時の名簿（ベースROSTER＋追加分）と名前候補
 function rosterAll() { return ROSTER.concat(extraInterns); }
 function namesAll() { const s = new Set(INTERN_NAMES); extraInterns.forEach(p => p.n && s.add(p.n)); return [...s]; }
+// 名前照合用：空白（半角・全角）を無視してそろえる（例:「山田太郎」＝「山田 太郎」）
+function normPerson(s) { return (s || "").replace(/\s/g, ""); }
 let requests = [];
 let filter = "pending"; // pending | approved | all
 let reviewer = localStorage.getItem("irai_reviewer") === "1"; // 確認者モード
@@ -1534,7 +1536,7 @@ function renderManageMonthly() {
       const sched = scheduledDates(p.d, p.u, y, mo);
       const present = sched.filter(d => !isAbsent(p.n, d));
       const absentN = sched.length - present.length;
-      const myReqs = monthReqs.filter(r => r.person_name === p.n);
+      const myReqs = monthReqs.filter(r => normPerson(r.person_name) === normPerson(p.n));
       const betsuReal = myReqs.filter(r => (r.client_id || "") !== "manual-add");
       const added = myReqs.filter(r => (r.client_id || "") === "manual-add");
       // 出社した日の集合（重複除去）で回数を算出
@@ -1679,7 +1681,7 @@ function renderManageByPerson(approved) {
   const byMonth = {};
   approved.forEach(r => {
     const mKey = r.requested_date.slice(0, 7); // "2026-07"
-    const pKey = (r.unit_name || "") + "|" + (r.person_name || "");
+    const pKey = (r.unit_name || "") + "|" + normPerson(r.person_name); // スペース違いは同一人物として集約
     ((byMonth[mKey] ||= {})[pKey] ||= { unit: r.unit_name, name: r.person_name, dates: [] })
       .dates.push(r.requested_date);
   });
