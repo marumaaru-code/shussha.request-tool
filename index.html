@@ -608,7 +608,7 @@ const UNIT_LEADERS = {
   "SNS unitE": { n: "わたなべじゅら", id: "U06SHV6LRJ5" }, "SNS unitF": { n: "田中るい", id: "U06TPRP7YUV" }, "SNS unitG": { n: "けんこば", id: "U0AA49QGZ9S" }, "SNS unitH": { n: "荒川", id: "U073JKE5916" },
   "広告 unitA": { n: "松本かつみ", id: "U078KMTU77A" }, "広告 unitB": { n: "山下りき", id: "U08MQ4C2CKX" }, "広告 unitC": { n: "安藤かい", id: "U08MRC75XBK" }, "広告 unitD": { n: "はたけやま", id: "U05MZPCQG7Q" },
   "広告AIO": { n: "しばたあきら", id: "U06KPRRLUQL" }, "AI": { n: "たんのゆうじろう", id: "U05UXE4NZDJ" },
-  "LINE": { n: "しばたあきら", id: "U06KPRRLUQL" }, "フロント": { n: "本間ゆうか", id: "U07AGNJP7FU" },
+  "LINE AIO": { n: "しばたあきら", id: "U06KPRRLUQL" }, "フロント": { n: "本間ゆうか", id: "U07AGNJP7FU" },
 };
 /* ==================================================================
    ▲▲▲ 設定ここまで ▲▲▲
@@ -623,7 +623,7 @@ const INTERN_NAMES = ["近藤 隆太", "小寺 恭平", "蒔田 美桜", "本間
 /* 所属（事業部）とその配下のunit。空配列＝unitの選択なし */
 const DIVISIONS = {
   "SNS":  ["A", "B", "C", "D", "E", "F", "G", "H"],
-  "LINE": [],
+  "LINE AIO": [],
   "AI":   [],
   "広告AIO": [],
   "広告": ["A", "B", "C", "D"],
@@ -641,7 +641,7 @@ const UNIT_DAYS = {
   "AI":   { "": [3] },      // 基本 水曜
   "広告AIO": { "": [4] },   // 基本 木曜（8月以降）
   "フロント": { "": [3] },  // おそらく水（要確認）
-  "LINE": { "": [] },       // 曜日未定（あとで設定）
+  "LINE AIO": { "": [] },   // 曜日未定（あとで設定）
 };
 const SEATS_3F_TOTAL = 22;  // 3Fの座席数（作業スペース）
 
@@ -678,7 +678,7 @@ function seatRemainingOn(dateStr) {
 /* 部署（所属）ごとの表示色。LINEは緑指定、その他は異なる色。 */
 const DIV_COLORS = {
   "SNS":  { fg: "#3b82f6", bg: "rgba(59,130,246,.14)" },  // 青
-  "LINE": { fg: "#22a95a", bg: "rgba(34,169,90,.16)"  },  // 緑（指定）
+  "LINE AIO": { fg: "#22a95a", bg: "rgba(34,169,90,.16)"  },  // 緑（指定）
   "AI":   { fg: "#9061e6", bg: "rgba(144,97,230,.15)" },  // 紫
   "広告AIO": { fg: "#0891b2", bg: "rgba(8,145,178,.14)"  }, // シアン
   "広告": { fg: "#e0821f", bg: "rgba(224,130,31,.16)" },  // オレンジ
