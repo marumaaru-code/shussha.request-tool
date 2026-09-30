@@ -1086,6 +1086,7 @@ async function submitRequest(e) {
 function sideOf(div) {
   if (div === "SNS") return "SNS";
   if (div === "広告" || div === "広告AIO") return "広告";
+  if (div === "LINE AIO") return "SNS"; // 曜日ごとの承認者はSNSと同じに委譲
   return null;
 }
 
