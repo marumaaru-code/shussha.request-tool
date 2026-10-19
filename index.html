@@ -601,6 +601,19 @@ const APPROVERS = {
   },
 };
 
+/* 新方式：unitごとの承認者（UL）をメンション。ここに定義のあるunitはこちら優先（曜日APPROVERS・ccより優先、ccなし）。 */
+const UNIT_APPROVERS = {
+  "SNS unitA": [{ n: "渡邊珠羅", id: "U06SHV6LRJ5" }],
+  "SNS unitB": [{ n: "田中琉偉", id: "U06TPRP7YUV" }],
+  "SNS unitC": [{ n: "新井あかね", id: "U08EWPFNYH4" }],
+  "SNS unitD": [{ n: "籾山響翔", id: "U093D7UCWVD" }],
+  "SNS unitE": [{ n: "荒川陽風", id: "U073JKE5916" }],
+  "SNS unitF": [{ n: "岸浪結衣", id: "U09QQ8VR248" }, { n: "阪上耕平", id: "U063M46BSS1" }],
+  "SNS unitG": [{ n: "小寺恭平", id: "U07C532EVSN" }],
+  "SNS unitH": [{ n: "直井理子", id: "U08JZKVA4QG" }],
+  "SNS unitI": [{ n: "梅原菜摘", id: "U0858D9H76G" }],
+};
+
 /* 申請を出したunitの「社員リーダー」。所属名（例 "SNS unitH" / "広告 unitB" / "AI"）で引く。
    { n:表示名, id:メンバーID }。id があれば確実に@cc、無ければ n をテキスト表示。空の項目はcc無し。 */
 const UNIT_LEADERS = {
@@ -622,7 +635,7 @@ const INTERN_NAMES = ["近藤 隆太", "小寺 恭平", "蒔田 美桜", "本間
 
 /* 所属（事業部）とその配下のunit。空配列＝unitの選択なし */
 const DIVISIONS = {
-  "SNS":  ["A", "B", "C", "D", "E", "F", "G", "H"],
+  "SNS":  ["A", "B", "C", "D", "E", "F", "G", "H", "I"],
   "LINE AIO": [],
   "AI":   [],
   "広告AIO": [],
@@ -635,14 +648,29 @@ const DIVISIONS = {
 /* ── ユニット → メイン出社曜日（1=月 … 5=金） ──
    ここを書き換えれば、メイン出社曜日の変更を後から反映できます。
    空配列＝曜日未定。AIは週2（水木）。                          */
-const UNIT_DAYS = {
+// 編成の切替日。この日以降は新編成（SNS）を適用。これより前は旧編成（記録として保持）。
+const ROSTER_CUTOVER = "2026-10-19";
+
+// 旧編成（〜2026/10/18）のメイン出社曜日
+const UNIT_DAYS_PREV = {
   "SNS":  { A: [1], B: [1], C: [1], D: [2], E: [2], F: [3], G: [4], H: [5] },
   "広告": { A: [2], B: [3], C: [4], D: [5] },
+  "AI":   { "": [3] },
+  "広告AIO": { "": [4] },
+  "フロント": { "": [3] },
+  "LINE AIO": { "": [] },
+};
+// 新編成（2026/10/19〜）のメイン出社曜日
+const UNIT_DAYS = {
+  "SNS":  { A: [1], B: [1], C: [1], D: [1], E: [2], F: [3], G: [4], H: [5], I: [5] },
+  "広告": { A: [2], B: [3], C: [4], D: [5] },  // ※広告は次フェーズで更新予定
   "AI":   { "": [3] },      // 基本 水曜
-  "広告AIO": { "": [4] },   // 基本 木曜（8月以降）
+  "広告AIO": { "": [4] },   // 基本 木曜
   "フロント": { "": [3] },  // おそらく水（要確認）
   "LINE AIO": { "": [] },   // 曜日未定（あとで設定）
 };
+// 指定日に有効なメイン曜日マップ（旧/新）を返す
+function unitDaysForDate(dateStr) { return dateStr >= ROSTER_CUTOVER ? UNIT_DAYS : UNIT_DAYS_PREV; }
 const SEATS_3F_TOTAL = 22;  // 3Fの座席数（作業スペース）
 
 /* ── 座席残数の目安（確認者が承認判断に使う） ──
@@ -702,11 +730,32 @@ function unitChip(unitName) {
 }
 
 /* 在籍中インターンの名簿（スプレッドシートから。d=部署 / u=unit）。月間出社の予定計算に使用 */
-const ROSTER = [{"n": "近藤 隆太", "d": "広告AIO", "u": ""}, {"n": "蒔田 美桜", "d": "広告AIO", "u": ""}, {"n": "小寺 恭平", "d": "AI", "u": ""}, {"n": "本間 うらら", "d": "SNS", "u": "G"}, {"n": "木場 なずな", "d": "広告AIO", "u": ""}, {"n": "岸 宏亮", "d": "SNS", "u": "A"}, {"n": "須永 羽花", "d": "SNS", "u": "G"}, {"n": "廣仲 真歩", "d": "広告AIO", "u": ""}, {"n": "川嶋 海聖", "d": "SNS", "u": "D"}, {"n": "梅原 菜摘", "d": "SNS", "u": "B"}, {"n": "宮崎 壮太郎", "d": "フロント", "u": ""}, {"n": "荒谷 優芽", "d": "広告AIO", "u": ""}, {"n": "小堀 楓佳", "d": "広告", "u": "B"}, {"n": "藤村 隆大", "d": "広告", "u": "A"}, {"n": "川端 天斗", "d": "SNS", "u": "D"}, {"n": "大野 遥翔", "d": "広告", "u": "D"}, {"n": "花田 彩芽", "d": "広告", "u": "D"}, {"n": "深代 悠太", "d": "開発", "u": ""}, {"n": "佐竹 稲光", "d": "SNS", "u": "H"}, {"n": "谷崎 鈴音", "d": "SNS", "u": "C"}, {"n": "直井 理子", "d": "SNS", "u": "G"}, {"n": "鈴木 碧羽", "d": "SNS", "u": "G"}, {"n": "安藤 快", "d": "広告", "u": "C"}, {"n": "山下 陽樹", "d": "広告", "u": "B"}, {"n": "鈴木 愛翔", "d": "SNS", "u": "A"}, {"n": "太目 雅斗", "d": "AI", "u": ""}, {"n": "後藤 遥斗", "d": "広告", "u": "B"}, {"n": "加藤 歩奈美", "d": "SNS", "u": "H"}, {"n": "本田 直也", "d": "開発", "u": ""}, {"n": "野口 楓花", "d": "SNS", "u": "H"}, {"n": "吉田 圭佑", "d": "開発", "u": ""}, {"n": "櫻井 正優", "d": "開発", "u": ""}, {"n": "竹原 來", "d": "SNS", "u": "H"}, {"n": "後宮 李果", "d": "SNS", "u": "A"}, {"n": "籾山 響翔", "d": "SNS", "u": "A"}, {"n": "松田 陽大", "d": "開発", "u": ""}, {"n": "新垣 璃夢", "d": "SNS", "u": "B"}, {"n": "山﨑 楓花", "d": "SNS", "u": "C"}, {"n": "千葉 桃佳", "d": "SNS", "u": "F"}, {"n": "星野 悠斗", "d": "SNS", "u": "C"}, {"n": "馬場 優蔵", "d": "SNS", "u": "F"}, {"n": "星野 唯花", "d": "SNS", "u": "D"}, {"n": "三浦 大輝", "d": "SNS", "u": "E"}, {"n": "島田 樹", "d": "SNS", "u": "C"}, {"n": "松本 愛菜", "d": "SNS", "u": "G"}, {"n": "岸浪 結衣", "d": "SNS", "u": "B"}, {"n": "神谷 穂乃花", "d": "SNS", "u": "D"}, {"n": "金岡 伶奈", "d": "広告", "u": "A"}, {"n": "高木 洸亮", "d": "SNS", "u": "G"}, {"n": "市東 怜穏", "d": "SNS", "u": "D"}, {"n": "寺島 咲那", "d": "SNS", "u": "A"}, {"n": "金丸 咲楽", "d": "SNS", "u": "C"}, {"n": "武内 佑介", "d": "AI", "u": ""}, {"n": "岩城 陶子", "d": "広告", "u": "B"}, {"n": "岩佐 結風", "d": "SNS", "u": "A"}, {"n": "佐藤 惺哉", "d": "広告", "u": "B"}, {"n": "杉浦 悠太", "d": "SNS", "u": "C"}, {"n": "田畑 翔也", "d": "広告AIO", "u": ""}, {"n": "川崎 佑斗", "d": "SNS", "u": "G"}, {"n": "石松 佳奈", "d": "SNS", "u": "H"}, {"n": "大河原 将", "d": "SNS", "u": "B"}, {"n": "河村 航", "d": "SNS", "u": "B"}, {"n": "平良 隼人", "d": "広告", "u": "D"}, {"n": "兼古 憲昇", "d": "広告", "u": "C"}, {"n": "大川 飛由悟", "d": "SNS", "u": "H"}, {"n": "伊藤 悠貴", "d": "SNS", "u": "A"}, {"n": "八木 夏希", "d": "広告", "u": "A"}, {"n": "住谷 双葉", "d": "SNS", "u": "E"}, {"n": "笠原 真帆", "d": "SNS", "u": "B"}, {"n": "神谷 奏羽", "d": "広告", "u": "D"}, {"n": "大木 七海", "d": "広告", "u": "D"}, {"n": "郭 依鈴", "d": "SNS", "u": "H"}, {"n": "小山 耀平", "d": "SNS", "u": "H"}, {"n": "藤本 美波", "d": "SNS", "u": "E"}, {"n": "鈴木 晴菜", "d": "SNS", "u": "E"}, {"n": "柴田 颯大", "d": "SNS", "u": "E"}, {"n": "白澤 美里", "d": "広告", "u": "B"}, {"n": "橋居 要", "d": "広告", "u": "D"}, {"n": "中嶌 麻有", "d": "SNS", "u": "F"}, {"n": "藤田 遥人", "d": "広告", "u": "A"}, {"n": "月原 菜々子", "d": "SNS", "u": "C"}, {"n": "杉山 りら", "d": "SNS", "u": "B"}, {"n": "大久保 沙南", "d": "SNS", "u": "B"}, {"n": "伊藤 瑚子", "d": "SNS", "u": "E"}, {"n": "野上 航希", "d": "SNS", "u": "H"}, {"n": "馬場 健介", "d": "広告", "u": "C"}, {"n": "板原 海空", "d": "SNS", "u": "A"}, {"n": "川上 慧大", "d": "広告", "u": "B"}, {"n": "秋山 ゆい", "d": "SNS", "u": "A"}, {"n": "鈴木 透真", "d": "広告", "u": "B"}, {"n": "松山 奏太", "d": "広告", "u": "B"}, {"n": "小林 真緒", "d": "広告", "u": "C"}, {"n": "本村 春人", "d": "SNS", "u": "C"}, {"n": "大和 紅凜", "d": "SNS", "u": "F"}, {"n": "嶋村 隆之介", "d": "広告", "u": "D"}, {"n": "松山 心花", "d": "SNS", "u": "E"}, {"n": "香村 祐太", "d": "広告", "u": "A"}, {"n": "三谷 海地", "d": "SNS", "u": "B"}, {"n": "田松 沙羅", "d": "広告", "u": "D"}, {"n": "吉田 悠剛", "d": "広告", "u": "C"}, {"n": "熊田 和奏", "d": "SNS", "u": "G"}, {"n": "入野 陽生", "d": "SNS", "u": "A"}, {"n": "土方 兼人", "d": "SNS", "u": "B"}, {"n": "西之園 虎之介", "d": "SNS", "u": "G"}, {"n": "酒井 冬花", "d": "SNS", "u": "F"}, {"n": "今野 拓翔", "d": "広告", "u": ""}];
+const ROSTER_PREV = [{"n": "近藤 隆太", "d": "広告AIO", "u": ""}, {"n": "蒔田 美桜", "d": "広告AIO", "u": ""}, {"n": "小寺 恭平", "d": "AI", "u": ""}, {"n": "本間 うらら", "d": "SNS", "u": "G"}, {"n": "木場 なずな", "d": "広告AIO", "u": ""}, {"n": "岸 宏亮", "d": "SNS", "u": "A"}, {"n": "須永 羽花", "d": "SNS", "u": "G"}, {"n": "廣仲 真歩", "d": "広告AIO", "u": ""}, {"n": "川嶋 海聖", "d": "SNS", "u": "D"}, {"n": "梅原 菜摘", "d": "SNS", "u": "B"}, {"n": "宮崎 壮太郎", "d": "フロント", "u": ""}, {"n": "荒谷 優芽", "d": "広告AIO", "u": ""}, {"n": "小堀 楓佳", "d": "広告", "u": "B"}, {"n": "藤村 隆大", "d": "広告", "u": "A"}, {"n": "川端 天斗", "d": "SNS", "u": "D"}, {"n": "大野 遥翔", "d": "広告", "u": "D"}, {"n": "花田 彩芽", "d": "広告", "u": "D"}, {"n": "深代 悠太", "d": "開発", "u": ""}, {"n": "佐竹 稲光", "d": "SNS", "u": "H"}, {"n": "谷崎 鈴音", "d": "SNS", "u": "C"}, {"n": "直井 理子", "d": "SNS", "u": "G"}, {"n": "鈴木 碧羽", "d": "SNS", "u": "G"}, {"n": "安藤 快", "d": "広告", "u": "C"}, {"n": "山下 陽樹", "d": "広告", "u": "B"}, {"n": "鈴木 愛翔", "d": "SNS", "u": "A"}, {"n": "太目 雅斗", "d": "AI", "u": ""}, {"n": "後藤 遥斗", "d": "広告", "u": "B"}, {"n": "加藤 歩奈美", "d": "SNS", "u": "H"}, {"n": "本田 直也", "d": "開発", "u": ""}, {"n": "野口 楓花", "d": "SNS", "u": "H"}, {"n": "吉田 圭佑", "d": "開発", "u": ""}, {"n": "櫻井 正優", "d": "開発", "u": ""}, {"n": "竹原 來", "d": "SNS", "u": "H"}, {"n": "後宮 李果", "d": "SNS", "u": "A"}, {"n": "籾山 響翔", "d": "SNS", "u": "A"}, {"n": "松田 陽大", "d": "開発", "u": ""}, {"n": "新垣 璃夢", "d": "SNS", "u": "B"}, {"n": "山﨑 楓花", "d": "SNS", "u": "C"}, {"n": "千葉 桃佳", "d": "SNS", "u": "F"}, {"n": "星野 悠斗", "d": "SNS", "u": "C"}, {"n": "馬場 優蔵", "d": "SNS", "u": "F"}, {"n": "星野 唯花", "d": "SNS", "u": "D"}, {"n": "三浦 大輝", "d": "SNS", "u": "E"}, {"n": "島田 樹", "d": "SNS", "u": "C"}, {"n": "松本 愛菜", "d": "SNS", "u": "G"}, {"n": "岸浪 結衣", "d": "SNS", "u": "B"}, {"n": "神谷 穂乃花", "d": "SNS", "u": "D"}, {"n": "金岡 伶奈", "d": "広告", "u": "A"}, {"n": "高木 洸亮", "d": "SNS", "u": "G"}, {"n": "市東 怜穏", "d": "SNS", "u": "D"}, {"n": "寺島 咲那", "d": "SNS", "u": "A"}, {"n": "金丸 咲楽", "d": "SNS", "u": "C"}, {"n": "武内 佑介", "d": "AI", "u": ""}, {"n": "岩城 陶子", "d": "広告", "u": "B"}, {"n": "岩佐 結風", "d": "SNS", "u": "A"}, {"n": "佐藤 惺哉", "d": "広告", "u": "B"}, {"n": "杉浦 悠太", "d": "SNS", "u": "C"}, {"n": "田畑 翔也", "d": "広告AIO", "u": ""}, {"n": "川崎 佑斗", "d": "SNS", "u": "G"}, {"n": "石松 佳奈", "d": "SNS", "u": "H"}, {"n": "大河原 将", "d": "SNS", "u": "B"}, {"n": "河村 航", "d": "SNS", "u": "B"}, {"n": "平良 隼人", "d": "広告", "u": "D"}, {"n": "兼古 憲昇", "d": "広告", "u": "C"}, {"n": "大川 飛由悟", "d": "SNS", "u": "H"}, {"n": "伊藤 悠貴", "d": "SNS", "u": "A"}, {"n": "八木 夏希", "d": "広告", "u": "A"}, {"n": "住谷 双葉", "d": "SNS", "u": "E"}, {"n": "笠原 真帆", "d": "SNS", "u": "B"}, {"n": "神谷 奏羽", "d": "広告", "u": "D"}, {"n": "大木 七海", "d": "広告", "u": "D"}, {"n": "郭 依鈴", "d": "SNS", "u": "H"}, {"n": "小山 耀平", "d": "SNS", "u": "H"}, {"n": "藤本 美波", "d": "SNS", "u": "E"}, {"n": "鈴木 晴菜", "d": "SNS", "u": "E"}, {"n": "柴田 颯大", "d": "SNS", "u": "E"}, {"n": "白澤 美里", "d": "広告", "u": "B"}, {"n": "橋居 要", "d": "広告", "u": "D"}, {"n": "中嶌 麻有", "d": "SNS", "u": "F"}, {"n": "藤田 遥人", "d": "広告", "u": "A"}, {"n": "月原 菜々子", "d": "SNS", "u": "C"}, {"n": "杉山 りら", "d": "SNS", "u": "B"}, {"n": "大久保 沙南", "d": "SNS", "u": "B"}, {"n": "伊藤 瑚子", "d": "SNS", "u": "E"}, {"n": "野上 航希", "d": "SNS", "u": "H"}, {"n": "馬場 健介", "d": "広告", "u": "C"}, {"n": "板原 海空", "d": "SNS", "u": "A"}, {"n": "川上 慧大", "d": "広告", "u": "B"}, {"n": "秋山 ゆい", "d": "SNS", "u": "A"}, {"n": "鈴木 透真", "d": "広告", "u": "B"}, {"n": "松山 奏太", "d": "広告", "u": "B"}, {"n": "小林 真緒", "d": "広告", "u": "C"}, {"n": "本村 春人", "d": "SNS", "u": "C"}, {"n": "大和 紅凜", "d": "SNS", "u": "F"}, {"n": "嶋村 隆之介", "d": "広告", "u": "D"}, {"n": "松山 心花", "d": "SNS", "u": "E"}, {"n": "香村 祐太", "d": "広告", "u": "A"}, {"n": "三谷 海地", "d": "SNS", "u": "B"}, {"n": "田松 沙羅", "d": "広告", "u": "D"}, {"n": "吉田 悠剛", "d": "広告", "u": "C"}, {"n": "熊田 和奏", "d": "SNS", "u": "G"}, {"n": "入野 陽生", "d": "SNS", "u": "A"}, {"n": "土方 兼人", "d": "SNS", "u": "B"}, {"n": "西之園 虎之介", "d": "SNS", "u": "G"}, {"n": "酒井 冬花", "d": "SNS", "u": "F"}, {"n": "今野 拓翔", "d": "広告", "u": ""}];
+
+/* 新編成のSNS（2026/10/19〜）。UL社員は集計に含めない。ULインターン本人（直井・梅原・小寺・岸浪）と籾山さんは今季から集計に含める。 */
+const ROSTER_NEW_SNS = [
+  {"n":"岸 宏亮","u":"A"},{"n":"星野 悠斗","u":"A"},{"n":"大久保 沙南","u":"A"},{"n":"土方 兼人","u":"A"},{"n":"中嶌 麻有","u":"A"},{"n":"宮田 聖都","u":"A"},
+  {"n":"山﨑 楓花","u":"B"},{"n":"後宮 李果","u":"B"},{"n":"島田 樹","u":"B"},{"n":"本村 春人","u":"B"},{"n":"梅澤 和希","u":"B"},{"n":"鍋谷 優","u":"B"},
+  {"n":"鈴木 碧羽","u":"C"},{"n":"寺島 咲那","u":"C"},{"n":"鈴木 愛翔","u":"C"},{"n":"松本 愛菜","u":"C"},{"n":"伊藤 悠貴","u":"C"},{"n":"伊藤 空音","u":"C"},{"n":"李 世賢","u":"C"},
+  {"n":"籾山 響翔","u":"D"},{"n":"板原 海空","u":"D"},{"n":"三谷 海地","u":"D"},{"n":"杉山 りら","u":"D"},{"n":"高木 洸亮","u":"D"},{"n":"酒井 冬花","u":"D"},{"n":"植田 優斗","u":"D"},
+  {"n":"三浦 大輝","u":"E"},{"n":"谷崎 鈴音","u":"E"},{"n":"柴田 颯大","u":"E"},{"n":"石川 舞菜","u":"E"},{"n":"入野 陽生","u":"E"},{"n":"郭 依鈴","u":"E"},{"n":"市東 怜穏","u":"E"},{"n":"笠間 創介","u":"E"},
+  {"n":"岸浪 結衣","u":"F"},{"n":"廣仲 真歩","u":"F"},{"n":"藤本 美波","u":"F"},{"n":"杉浦 悠太","u":"F"},{"n":"住谷 双葉","u":"F"},{"n":"松山 心花","u":"F"},{"n":"鈴木 晴菜","u":"F"},{"n":"塩田 一登","u":"F"},
+  {"n":"小寺 恭平","u":"G"},{"n":"蒔田 美桜","u":"G"},{"n":"本間 うらら","u":"G"},{"n":"田畑 翔也","u":"G"},{"n":"熊田 和奏","u":"G"},{"n":"西之園 虎之介","u":"G"},{"n":"杉浦 由梨","u":"G"},{"n":"川嶋 海聖","u":"G"},
+  {"n":"直井 理子","u":"H"},{"n":"馬場 優蔵","u":"H"},{"n":"加藤 歩奈美","u":"H"},{"n":"竹原 來","u":"H"},{"n":"大川 飛由悟","u":"H"},{"n":"大河原 将","u":"H"},{"n":"伊藤 瑚子","u":"H"},
+  {"n":"梅原 菜摘","u":"I"},{"n":"新垣 璃夢","u":"I"},{"n":"千葉 桃佳","u":"I"},{"n":"神谷 穂乃花","u":"I"},{"n":"野口 楓花","u":"I"},{"n":"川崎 佑斗","u":"I"},{"n":"小山 耀平","u":"I"},
+];
+/* 現行（新編成）名簿：旧の非SNS（新SNSへ移った人は除外）＋ 新SNS */
+const ROSTER = (function () {
+  const snsNames = new Set(ROSTER_NEW_SNS.map(p => p.n));
+  const carry = ROSTER_PREV.filter(p => p.d !== "SNS" && !snsNames.has(p.n));
+  return carry.concat(ROSTER_NEW_SNS.map(p => ({ n: p.n, d: "SNS", u: p.u })));
+})();
+/* 指定日に有効な名簿（旧/新）＋追加インターン */
+function rosterForDate(dateStr) { return (dateStr >= ROSTER_CUTOVER ? ROSTER : ROSTER_PREV).concat(extraInterns); }
 
 // unit → メイン出社曜日の配列（SNSは文字、AI/フロント等は""キー）
-function unitWeekdays(div, unit) {
-  const m = UNIT_DAYS[div];
+function unitWeekdays(div, unit, daysMap) {
+  const m = (daysMap || UNIT_DAYS)[div];
   if (!m) return [];
   return m[unit] || m[""] || [];
 }
@@ -733,8 +782,8 @@ let excludedNames = new Set(); // 名簿から除外（非表示）にした在�
 function rosterAllRaw() { return ROSTER.concat(extraInterns); }
 function rosterAll() { return rosterAllRaw().filter(p => !excludedNames.has(p.n)); }
 function namesAll() {
-  const s = new Set(INTERN_NAMES);
-  extraInterns.forEach(p => p.n && s.add(p.n));
+  const s = new Set();
+  rosterAllRaw().forEach(p => p.n && s.add(p.n)); // 現行名簿（新編成＋追加分）を候補に
   excludedNames.forEach(n => s.delete(n)); // 除外した在籍メンバーは候補から外す
   return [...s];
 }
@@ -1092,6 +1141,13 @@ function sideOf(div) {
 
 // 所属名(例 "SNS unitH")＋希望日 から、承認担当メンション＋unitリーダーccを作る
 function slackMentions(unitName, date) {
+  // 新方式：unitにUL承認者が定義されていれば、それをメンション（ccなし）
+  const apprv = UNIT_APPROVERS[unitName];
+  if (apprv && apprv.length) {
+    const mention = apprv.map(a => a.id ? `<@${a.id}>` : a.n).join(" ") + " ";
+    const useLinkNames = apprv.some(a => !a.id);
+    return { mention, cc: "", useLinkNames };
+  }
   const div = divOf(unitName);
   const side = sideOf(div);
   const wd = new Date(date + "T00:00:00").getDay(); // 1=月…5=金
@@ -1585,9 +1641,29 @@ function renderManageMonthly() {
   // "sns_unitH" / "SNS H" / "snsh" などを揺れずに照合（unit・空白・_を無視）
   const nrm = s => (s || "").toLowerCase().replace(/[\s_]/g, "").replace(/unit/g, "");
   const q = nrm(manageQuery);
+  const pad0 = n => String(n).padStart(2, "0");
+  const dim0 = new Date(y, mo, 0).getDate();
 
-  // 対象者：名簿からメイン曜日を持つ人（検索で絞り込み）
-  const people = rosterAll().filter(p => {
+  // 名前ごとに、日付単位で有効な編成（旧/新）を見てメイン出社予定日を集計。
+  // → 月内で編成が切り替わる月（例:2026/10）も、切替日の前後で正しいunitで計算される。
+  const peopleMap = new Map(); // 名前 -> { n, d, u(代表=月内で最後の編成), sched:[] }
+  for (let dd = 1; dd <= dim0; dd++) {
+    const ds = `${y}-${pad0(mo)}-${pad0(dd)}`;
+    const wd = new Date(y, mo - 1, dd).getDay();
+    const holiday = isHoliday(ds);
+    const daysMap = unitDaysForDate(ds);
+    for (const p of rosterForDate(ds)) {
+      if (excludedNames.has(p.n)) continue;
+      let rec = peopleMap.get(p.n);
+      if (!rec) { rec = { n: p.n, d: p.d, u: p.u, sched: [] }; peopleMap.set(p.n, rec); }
+      else { rec.d = p.d; rec.u = p.u; } // 後の日付（新編成）を代表unitに
+      const wds = unitWeekdays(p.d, p.u, daysMap);
+      if (wds.length && wds.includes(wd) && !holiday) rec.sched.push(ds);
+    }
+  }
+
+  // 対象者：メイン曜日を持つ人（検索で絞り込み）
+  const people = [...peopleMap.values()].filter(p => {
     const uname = composeUnitName(p.d, p.u);
     return unitWeekdays(p.d, p.u).length &&
       (!q || nrm(p.n).includes(q) || nrm(uname).includes(q));
@@ -1597,7 +1673,7 @@ function renderManageMonthly() {
       (q ? "該当するインターンがいません。" : "対象者がいません。") + "</div>";
   }
 
-  // unitごとにまとめる
+  // unitごとにまとめる（代表unitで）
   const groups = {};
   people.forEach(p => { (groups[composeUnitName(p.d, p.u)] ||= []).push(p); });
 
@@ -1617,7 +1693,7 @@ function renderManageMonthly() {
 
   const body = Object.keys(groups).sort((a, b) => a.localeCompare(b, "ja")).map(uname => {
     const rows = groups[uname].sort((a, b) => a.n.localeCompare(b.n, "ja")).map(p => {
-      const sched = scheduledDates(p.d, p.u, y, mo);
+      const sched = p.sched;
       const present = sched.filter(d => !isAbsent(p.n, d));
       const absentN = sched.length - present.length;
       const myReqs = monthReqs.filter(r => normPerson(r.person_name) === normPerson(p.n));
@@ -1688,9 +1764,10 @@ async function addVisit(name, unit, date) {
   if (isHoliday(date)) { toast("祝日は追加できません"); return; }
   const wd0 = new Date(date + "T00:00:00").getDay();
   if (wd0 === 0 || wd0 === 6) { toast("土日は追加できません"); return; }
-  // 既に出社記録がある日は追加しない
-  const p = rosterAll().find(x => x.n === name);
-  if (p && scheduledDates(p.d, p.u, +date.slice(0, 4), +date.slice(5, 7)).includes(date)) {
+  // 既に出社記録がある日は追加しない（その日に有効な編成でメイン出社日か判定）
+  const p = rosterForDate(date).find(x => x.n === name);
+  if (p && !isHoliday(date) &&
+      unitWeekdays(p.d, p.u, unitDaysForDate(date)).includes(wd0)) {
     toast("その日は元々メイン出社日です"); return;
   }
   if (requests.some(r => r.person_name === name && r.requested_date === date && statusOf(r) === "approved")) {
