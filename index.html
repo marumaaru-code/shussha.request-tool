@@ -744,11 +744,17 @@ const ROSTER_NEW_SNS = [
   {"n":"直井 理子","u":"H"},{"n":"馬場 優蔵","u":"H"},{"n":"加藤 歩奈美","u":"H"},{"n":"竹原 來","u":"H"},{"n":"大川 飛由悟","u":"H"},{"n":"大河原 将","u":"H"},{"n":"伊藤 瑚子","u":"H"},
   {"n":"梅原 菜摘","u":"I"},{"n":"新垣 璃夢","u":"I"},{"n":"千葉 桃佳","u":"I"},{"n":"神谷 穂乃花","u":"I"},{"n":"野口 楓花","u":"I"},{"n":"川崎 佑斗","u":"I"},{"n":"小山 耀平","u":"I"},
 ];
-/* 現行（新編成）名簿：旧の非SNS（新SNSへ移った人は除外）＋ 新SNS */
+/* 新編成でSNS以外へ異動した人（この切替で部署が変わった分）。退職者はここにもSNSにも入れない＝新編成では未所属。 */
+const ROSTER_NEW_OTHER = [
+  { n: "佐竹 稲光", d: "AI", u: "" }, // 旧SNS H → AIへ異動
+];
+/* 現行（新編成）名簿：旧の非SNS（異動/退職者は除外）＋ 新SNS ＋ 他部署への異動分 */
 const ROSTER = (function () {
-  const snsNames = new Set(ROSTER_NEW_SNS.map(p => p.n));
-  const carry = ROSTER_PREV.filter(p => p.d !== "SNS" && !snsNames.has(p.n));
-  return carry.concat(ROSTER_NEW_SNS.map(p => ({ n: p.n, d: "SNS", u: p.u })));
+  const moved = new Set([...ROSTER_NEW_SNS.map(p => p.n), ...ROSTER_NEW_OTHER.map(p => p.n)]);
+  const carry = ROSTER_PREV.filter(p => p.d !== "SNS" && !moved.has(p.n));
+  return carry
+    .concat(ROSTER_NEW_SNS.map(p => ({ n: p.n, d: "SNS", u: p.u })))
+    .concat(ROSTER_NEW_OTHER);
 })();
 /* 指定日に有効な名簿（旧/新）＋追加インターン */
 function rosterForDate(dateStr) { return (dateStr >= ROSTER_CUTOVER ? ROSTER : ROSTER_PREV).concat(extraInterns); }
