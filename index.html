@@ -617,6 +617,7 @@ const UNIT_APPROVERS = {
   "広告 unitC": [{ n: "畠山", id: "U05MZPCQG7Q" }],
   "広告 unitD": [{ n: "花田彩芽", id: "U08FNP1FWTD" }],
   "広告 unitE": [{ n: "山下陽樹", id: "U08MQ4C2CKX" }],
+  "広告AIO": [{ n: "しばたあきら", id: "U06KPRRLUQL" }], // 広告AIO＝LINE AIO（統合）。UL=しばたあきら
 };
 
 /* 申請を出したunitの「社員リーダー」。所属名（例 "SNS unitH" / "広告 unitB" / "AI"）で引く。
@@ -626,7 +627,7 @@ const UNIT_LEADERS = {
   "SNS unitE": { n: "わたなべじゅら", id: "U06SHV6LRJ5" }, "SNS unitF": { n: "田中るい", id: "U06TPRP7YUV" }, "SNS unitG": { n: "けんこば", id: "U0AA49QGZ9S" }, "SNS unitH": { n: "荒川", id: "U073JKE5916" },
   "広告 unitA": { n: "松本かつみ", id: "U078KMTU77A" }, "広告 unitB": { n: "山下りき", id: "U08MQ4C2CKX" }, "広告 unitC": { n: "安藤かい", id: "U08MRC75XBK" }, "広告 unitD": { n: "はたけやま", id: "U05MZPCQG7Q" },
   "広告AIO": { n: "しばたあきら", id: "U06KPRRLUQL" }, "AI": { n: "たんのゆうじろう", id: "U05UXE4NZDJ" },
-  "LINE AIO": { n: "しばたあきら", id: "U06KPRRLUQL" }, "フロント": { n: "本間ゆうか", id: "U07AGNJP7FU" },
+  "フロント": { n: "本間ゆうか", id: "U07AGNJP7FU" },
 };
 /* ==================================================================
    ▲▲▲ 設定ここまで ▲▲▲
@@ -641,7 +642,6 @@ const INTERN_NAMES = ["近藤 隆太", "小寺 恭平", "蒔田 美桜", "本間
 /* 所属（事業部）とその配下のunit。空配列＝unitの選択なし */
 const DIVISIONS = {
   "SNS":  ["A", "B", "C", "D", "E", "F", "G", "H", "I"],
-  "LINE AIO": [],
   "AI":   [],
   "広告AIO": [],
   "広告": ["A", "B", "C", "D", "E"],
@@ -663,7 +663,6 @@ const UNIT_DAYS_PREV = {
   "AI":   { "": [3] },
   "広告AIO": { "": [4] },
   "フロント": { "": [3] },
-  "LINE AIO": { "": [] },
 };
 // 新編成（2026/10/19〜）のメイン出社曜日
 const UNIT_DAYS = {
@@ -672,7 +671,6 @@ const UNIT_DAYS = {
   "AI":   { "": [3] },      // 基本 水曜
   "広告AIO": { "": [4] },   // 基本 木曜
   "フロント": { "": [3] },  // おそらく水（要確認）
-  "LINE AIO": { "": [] },   // 曜日未定（あとで設定）
 };
 // 指定日に有効なメイン曜日マップ（旧/新）を返す
 function unitDaysForDate(dateStr) { return dateStr >= ROSTER_CUTOVER ? UNIT_DAYS : UNIT_DAYS_PREV; }
@@ -711,7 +709,6 @@ function seatRemainingOn(dateStr) {
 /* 部署（所属）ごとの表示色。LINEは緑指定、その他は異なる色。 */
 const DIV_COLORS = {
   "SNS":  { fg: "#3b82f6", bg: "rgba(59,130,246,.14)" },  // 青
-  "LINE AIO": { fg: "#22a95a", bg: "rgba(34,169,90,.16)"  },  // 緑（指定）
   "AI":   { fg: "#9061e6", bg: "rgba(144,97,230,.15)" },  // 紫
   "広告AIO": { fg: "#0891b2", bg: "rgba(8,145,178,.14)"  }, // シアン
   "広告": { fg: "#e0821f", bg: "rgba(224,130,31,.16)" },  // オレンジ
@@ -1159,7 +1156,6 @@ async function submitRequest(e) {
 function sideOf(div) {
   if (div === "SNS") return "SNS";
   if (div === "広告" || div === "広告AIO") return "広告";
-  if (div === "LINE AIO") return "SNS"; // 曜日ごとの承認者はSNSと同じに委譲
   return null;
 }
 
