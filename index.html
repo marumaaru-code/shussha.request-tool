@@ -1159,30 +1159,46 @@ function sideOf(div) {
   return null;
 }
 
-// 所属名(例 "SNS unitH")＋希望日 から、承認担当メンション＋unitリーダーccを作る
-function slackMentions(unitName, date) {
-  // 新方式：unitにUL承認者が定義されていれば、それをメンション（ccなし）
-  const apprv = UNIT_APPROVERS[unitName];
-  if (apprv && apprv.length) {
-    const mention = apprv.map(a => a.id ? `<@${a.id}>` : a.n).join(" ") + " ";
-    const useLinkNames = apprv.some(a => !a.id);
-    return { mention, cc: "", useLinkNames };
+// 指定side（SNS/広告）で、その曜日にメイン出社するunitのUL（承認者）を集める
+function approversForWeekday(side, weekday) {
+  const out = [], seen = new Set();
+  for (const unitName of Object.keys(UNIT_APPROVERS)) {
+    const d = divOf(unitName);
+    if (sideOf(d) !== side) continue;
+    const idx = unitName.indexOf(" unit");
+    const unit = idx >= 0 ? unitName.slice(idx + 5) : "";
+    if (!unitWeekdays(d, unit).includes(weekday)) continue; // そのunitのメイン曜日が希望曜日と一致
+    for (const u of UNIT_APPROVERS[unitName]) {
+      const k = u.id || u.n;
+      if (!seen.has(k)) { seen.add(k); out.push(u); }
+    }
   }
+  return out;
+}
+
+// 所属名(例 "SNS unitH")＋希望日 から、メンション（＝振替する曜日のUL）＋cc（＝本人のunitのUL）を作る
+function slackMentions(unitName, date) {
   const div = divOf(unitName);
   const side = sideOf(div);
-  const wd = new Date(date + "T00:00:00").getDay(); // 1=月…5=金
-  let entry = side && APPROVERS[side] ? APPROVERS[side][wd] : null;
-  if (entry === "SNS") entry = APPROVERS["SNS"] ? APPROVERS["SNS"][wd] : null; // 広告月曜→SNS月曜に委譲
-  let mention = "", useLinkNames = false;
-  if (Array.isArray(entry) && entry.length) {
-    mention = entry.map(a => a.id ? `<@${a.id}>` : a.n).join(" ") + " ";
-    useLinkNames = entry.some(a => !a.id);
+  const wd = new Date(date + "T00:00:00").getDay(); // 0=日…6=土（1=月…5=金）
+  let useLinkNames = false;
+
+  // メンション：振替出社する曜日のUL（申請者の事業部側）
+  const approvers = side ? approversForWeekday(side, wd) : [];
+  let mention = "";
+  if (approvers.length) {
+    mention = approvers.map(a => a.id ? `<@${a.id}>` : a.n).join(" ") + " ";
+    if (approvers.some(a => !a.id)) useLinkNames = true;
   }
-  const leader = UNIT_LEADERS[unitName];
+
+  // cc：申請者本人が所属するunitのUL（リーダー）。メンション済みの人は重複除外。
+  const own = UNIT_APPROVERS[unitName] || (UNIT_LEADERS[unitName] ? [UNIT_LEADERS[unitName]] : []);
+  const mentioned = new Set(approvers.map(a => a.id || a.n));
+  const ccList = own.filter(a => !mentioned.has(a.id || a.n));
   let cc = "";
-  if (leader && (leader.id || leader.n)) {
-    cc = leader.id ? `<@${leader.id}>` : leader.n;
-    if (!leader.id) useLinkNames = true;
+  if (ccList.length) {
+    cc = ccList.map(a => a.id ? `<@${a.id}>` : a.n).join(" ");
+    if (ccList.some(a => !a.id)) useLinkNames = true;
   }
   return { mention, cc, useLinkNames };
 }
