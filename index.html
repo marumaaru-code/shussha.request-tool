@@ -620,6 +620,11 @@ const UNIT_APPROVERS = {
   "広告AIO": [{ n: "しばたあきら", id: "U06KPRRLUQL" }], // 広告AIO＝LINE AIO（統合）。UL=しばたあきら
 };
 
+/* 曜日の承認者を手動で上書きする設定（side×曜日）。ここにあれば自動算出より優先。 */
+const SIDE_WEEKDAY_OVERRIDE = {
+  "広告": { 4: [{ n: "小寺恭平", id: "U07C532EVSN" }] }, // 広告の木曜承認者は小寺さん（SNS木曜と同じ）
+};
+
 /* 申請を出したunitの「社員リーダー」。所属名（例 "SNS unitH" / "広告 unitB" / "AI"）で引く。
    { n:表示名, id:メンバーID }。id があれば確実に@cc、無ければ n をテキスト表示。空の項目はcc無し。 */
 const UNIT_LEADERS = {
@@ -1161,6 +1166,9 @@ function sideOf(div) {
 
 // 指定side（SNS/広告）で、その曜日にメイン出社するunitのUL（承認者）を集める
 function approversForWeekday(side, weekday) {
+  // 手動上書きがあれば優先
+  const ov = SIDE_WEEKDAY_OVERRIDE[side] && SIDE_WEEKDAY_OVERRIDE[side][weekday];
+  if (ov) return ov;
   const out = [], seen = new Set();
   for (const unitName of Object.keys(UNIT_APPROVERS)) {
     const d = divOf(unitName);
